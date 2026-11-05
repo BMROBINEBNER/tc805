@@ -30,7 +30,7 @@ body{font-family:Rajdhani,"Segoe UI",system-ui,sans-serif;font-size:18px;line-he
   padding:calc(env(safe-area-inset-top) + 8px) 16px calc(env(safe-area-inset-bottom) + 84px)}
 h1{font-size:22px;letter-spacing:.06em;text-transform:uppercase;margin:4px 0 0;font-weight:700}
 h2{font-size:15px;letter-spacing:.12em;text-transform:uppercase;color:var(--leise);margin:22px 0 8px;font-weight:600}
-.kopf{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.kopf{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}.kopf>div:first-child{min-width:0}
 .unter{color:var(--leise);font-size:15px}
 .status{display:flex;align-items:center;gap:8px;font-size:15px;font-weight:600;padding:8px 12px;border-radius:999px;background:var(--karte);border:1px solid var(--linie);white-space:nowrap;flex-shrink:0;cursor:pointer}
 .punkt{width:10px;height:10px;border-radius:50%;background:var(--rot)}
@@ -52,13 +52,19 @@ input,select{font:inherit;font-size:20px;width:100%;padding:10px 12px;border-rad
 .ampel{font-weight:700;min-width:70px;text-align:right}
 .g{color:var(--gruen)}.o{color:var(--orange)}.r{color:var(--rot)}
 .akku{display:inline-flex;align-items:center;gap:2px;margin-left:4px}
-.akku i{display:block;width:4px;height:12px;border-radius:1px;background:var(--linie)}
+.akku i{display:block;width:3px;height:12px;border-radius:1px;background:var(--linie)}
 .akku i.v{background:var(--gruen)}.akku.leer i.v{background:var(--rot)}.akku.mittel i.v{background:var(--orange)}
 .plan{position:relative;background:var(--karte);border:1px solid var(--linie);border-radius:14px;overflow:hidden;touch-action:none;height:52vh;min-height:300px}
 .plan svg{width:100%;height:100%;display:block}
 .plan .knoepfe{position:absolute;right:8px;top:8px;display:flex;flex-direction:column;gap:6px}
 .plan .knoepfe button{width:44px;min-height:44px;padding:0;font-size:22px;border-radius:10px;background:var(--bg);color:var(--text);border:1px solid var(--linie)}
 .plan .legende{position:absolute;left:10px;bottom:8px;font-size:12px;color:var(--leise);background:color-mix(in srgb,var(--karte) 80%,transparent);padding:4px 8px;border-radius:8px}
+.wasserzeichen{position:fixed;left:50%;top:46%;width:min(62vw,300px);aspect-ratio:468/971;transform:translate(-50%,-50%);
+  background:var(--text);opacity:.045;pointer-events:none;z-index:5;
+  -webkit-mask:url(logo.png) center/contain no-repeat;mask:url(logo.png) center/contain no-repeat}
+.marke{width:22px;aspect-ratio:468/560;background:var(--text);flex-shrink:0;
+  -webkit-mask:url(logo.png) top/100% auto no-repeat;mask:url(logo.png) top/100% auto no-repeat}
+.titel{display:flex;align-items:center;gap:10px}
 .tabs{position:fixed;left:0;right:0;bottom:0;display:flex;background:var(--karte);border-top:1px solid var(--linie);padding-bottom:env(safe-area-inset-bottom)}
 .tabs button{background:transparent;color:var(--leise);border-radius:0;font-size:15px;min-height:62px;padding:8px 2px}
 .tabs button.aktiv{color:var(--text);box-shadow:inset 0 3px 0 var(--text)}
@@ -79,8 +85,9 @@ textarea{width:100%;min-height:90px;font-size:14px;border-radius:10px;border:1.5
 </style>
 </head>
 <body>
+<div class="wasserzeichen" aria-hidden="true"></div>
 <div class="kopf">
-  <div><h1>RO-BIM Vermessung</h1><!-- v7 --><div class="unter" id="modell">keine Punkte geladen</div></div>
+  <div><div class="titel"><span class="marke" aria-hidden="true"></span><h1>RO-BIM Vermessung</h1></div><!-- v8 --><div class="unter" id="modell">keine Punkte geladen</div></div>
   <div class="status" id="status"><span class="punkt"></span><span id="statustext">getrennt</span><span class="akku" id="akku" style="display:none"></span></div>
 </div>
 
@@ -327,7 +334,7 @@ async function akkuLesen(){
   try{
     const r = await befehl('CONF/90', 4000, true);
     const m = r.match(/0090\/0*(\d)/);
-    if (m){ const n = parseInt(m[1], 10); akkuZeigen(n); $('statustext').textContent = 'Akku ' + Math.round(n / 9 * 100) + ' %'; }
+    if (m){ const n = parseInt(m[1], 10); akkuZeigen(n); $('statustext').textContent = Math.round(n / 9 * 100) + ' %'; }
     else { log('Akku: unerwartete Antwort ' + r); $('statustext').textContent = 'Akku ?'; }
   }catch(e){ log('Akku: ' + fehlertext(e)); $('statustext').textContent = 'Akku ?'; }
 }
