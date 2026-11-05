@@ -168,8 +168,17 @@ textarea{width:100%;min-height:90px;font-size:14px;border-radius:10px;border:1.5
       <button class="zweit" id="einfuegenOk" style="margin-top:6px">Übernehmen</button>
     </details>
   </div>
+  <h2>Geräteeinstellungen</h2>
+  <div class="karte">
+    <ul class="liste" id="geraetliste"><li class="hinweis">Nach dem Verbinden werden die Einstellungen gelesen.</li></ul>
+    <div class="reihe" style="margin-top:10px">
+      <button class="zweit" id="profilSpeichern" disabled>Aktuellen Stand als Soll speichern</button>
+      <button id="profilHerstellen" disabled>Abweichungen wiederherstellen</button>
+    </div>
+    <div class="hinweis" style="margin-top:8px" id="profilInfo"></div>
+  </div>
   <h2>Protokoll</h2>
-  <div class="hinweis">Seitenversion 9 · Stand 05.11.2026</div>
+  <div class="hinweis">Seitenversion 10 · Stand 05.11.2026</div>
   <pre id="log"></pre>
 </section>
 
@@ -314,6 +323,7 @@ async function verbinden(){
     kanal.addEventListener('characteristicvaluechanged', empfang);
     statusSetzen(true, 'verbunden');
     await akkuLesen();
+    try{ await einstellungenPruefen(); }catch(e){ log('Einstellungen: ' + fehlertext(e)); }
     wachHalten();
     try{ await stationHolen(); planZeichnen(); }catch(e){}
   }catch(e){
@@ -644,6 +654,105 @@ $('kMessen').onclick = async () => {
       <div class="feld voll hinweis zahl">ΔE ${cm(p.e - p0.e)} · ΔN ${cm(p.n - p0.n)}</div></div></div>`;
   }catch(e){ melden(e.message, true); }
   k.disabled = !kanal; k.textContent = 'Messen';
+};
+
+// ---------------------------------------------------------------- Geräteeinstellungen (Soll-Profil prüfen und wiederherstellen)
+// Codes laut Leica „GSI ONLINE“, Abschnitt TPS100. art: set = lesen+schreiben, conf = nur lesen, wi = GET/PUT-Wort
+const EINST = [
+  {k: '177', name: 'Kompensator', art: 'set', werte: {0: 'AUS', 1: 'EIN'}, std: 1},
+  {k: '58', name: 'Prismenkonstante', art: 'wi', einheit: 'mm'},
+  {k: '59', name: 'Atmosphäre (ppm)', art: 'wi', einheit: 'ppm'},
+  {k: '161', name: 'EDM-Modus', art: 'conf', werte: {0: 'FEIN', 1: 'SCHNELL'}, std: 0},
+  {k: '40', name: 'Winkeleinheit', art: 'set', werte: {0: 'gon', 1: 'Grad dezimal', 2: 'Grad sexagesimal'}, std: 0},
+  {k: '41', name: 'Streckeneinheit', art: 'set', werte: {0: 'Meter', 1: 'Fuß'}, std: 0},
+  {k: '137', name: 'GSI-Format', art: 'set', werte: {0: 'GSI8', 1: 'GSI16'}},
+  {k: '95', name: 'Selbstabschaltung', art: 'set', werte: {0: 'AUS', 1: 'EIN'}},
+  {k: '30', name: 'Signalton', art: 'set', werte: {0: 'AUS', 1: 'EIN'}},
+  {k: '70', name: 'Baudrate', art: 'conf', werte: {0: '300', 1: '600', 2: '1200', 3: '2400', 4: '4800', 5: '9600'}},
+  {k: '71', name: 'Parität', art: 'conf', werte: {0: 'keine', 1: 'ungerade', 2: 'gerade'}},
+  {k: '73', name: 'Endzeichen', art: 'conf', werte: {0: 'CR', 1: 'CR/LF'}},
+];
+let ist_einst = {};
+function sollProfil(){
+  const s = speicher.get('soll_profil', null);
+  if (s) return s;
+  const d = {}; for (const e of EINST) if (e.std != null) d[e.k] = {wert: e.std}; return d;   // Grundregeln ohne gespeichertes Profil
+}
+function wiWert(roh){
+  // z. B. *58..16+0000000000000175 -> Zahl in mm bzw. ppm (Einheitenzeichen beachten)
+  const w = roh.trim().replace(/^\*/, ''); const einh = w[5], vz = w[6] === '-' ? -1 : 1, d = w.slice(7);
+  const n = parseInt(d, 10); const teiler = ({'0': 1, '6': 10, '8': 100})[einh] ?? 1;
+  return {zahl: vz * n / teiler, roh: w};
+}
+async function einstellungenLesen(){
+  const ist = {};
+  for (const e of EINST){
+    try{
+      if (e.art === 'wi'){
+        const r = await befehl('GET/I/WI' + e.k, 3000, true);
+        if (!r.startsWith('@')) ist[e.k] = wiWert(r);
+      } else {
+        const r = await befehl('CONF/' + e.k, 3000, true);
+        const m = r.match(/^0*(\d+)\/0*(\d+)/);
+        if (m) ist[e.k] = {wert: parseInt(m[2], 10)};
+      }
+    }catch(e2){ log('Einstellung ' + e.k + ': ' + fehlertext(e2)); }
+  }
+  ist_einst = ist; return ist;
+}
+function anzeige(e, v){
+  if (!v) return '–';
+  if (e.art === 'wi') return (v.zahl >= 0 ? '+' : '') + String(v.zahl).replace('.', ',') + ' ' + e.einheit;
+  return (e.werte && e.werte[v.wert] != null) ? e.werte[v.wert] : String(v.wert);
+}
+function gleich(e, a, b){ if (!a || !b) return true; return e.art === 'wi' ? Math.abs(a.zahl - b.zahl) < 0.05 : a.wert === b.wert; }
+function abweichungen(){
+  const soll = sollProfil(); const liste = [];
+  for (const e of EINST) if (soll[e.k] && ist_einst[e.k] && !gleich(e, ist_einst[e.k], soll[e.k])) liste.push(e);
+  return liste;
+}
+function einstellungenZeigen(){
+  const ul = $('geraetliste'), soll = sollProfil(); ul.innerHTML = '';
+  for (const e of EINST){
+    const v = ist_einst[e.k]; if (!v) continue;
+    const ok = !soll[e.k] || gleich(e, v, soll[e.k]);
+    const li = document.createElement('li');
+    li.innerHTML = '<span class="name" style="min-width:150px;font-weight:600"></span><span class="info"></span><span class="ampel"></span>';
+    li.children[0].textContent = e.name;
+    li.children[1].textContent = anzeige(e, v) + (ok || !soll[e.k] ? '' : '   (Soll: ' + anzeige(e, soll[e.k]) + ')');
+    li.children[2].textContent = soll[e.k] ? (ok ? '✓' : '⚠') : ''; li.children[2].className = 'ampel ' + (ok ? 'g' : 'r');
+    ul.appendChild(li);
+  }
+  const ab = abweichungen();
+  $('profilSpeichern').disabled = !kanal; $('profilHerstellen').disabled = !kanal || !ab.some(e => e.art !== 'conf');
+  $('profilInfo').textContent = speicher.get('soll_profil', null)
+    ? (ab.length ? ab.length + ' Abweichung(en) vom gespeicherten Soll.' : 'Alles wie im gespeicherten Soll.')
+    : 'Noch kein Soll gespeichert – geprüft werden nur Kompensator EIN, EDM FEIN, gon und Meter. Wenn alles passt: „Aktuellen Stand als Soll speichern“.';
+}
+async function einstellungenPruefen(){
+  await einstellungenLesen(); einstellungenZeigen();
+  const ab = abweichungen();
+  if (ab.length) melden('⚠ Geräteeinstellung weicht ab: ' + ab.map(e => e.name + ' ' + anzeige(e, ist_einst[e.k])).join(', ') + ' – siehe Reiter „Punkte“.', true);
+}
+$('profilSpeichern').onclick = async () => {
+  await einstellungenLesen();
+  const p = {}; for (const e of EINST) if (ist_einst[e.k] && e.k !== '70' && e.k !== '71' && e.k !== '73') p[e.k] = ist_einst[e.k];
+  speicher.set('soll_profil', p); einstellungenZeigen(); melden('Soll-Stand gespeichert (' + Object.keys(p).length + ' Einstellungen).');
+};
+$('profilHerstellen').onclick = async () => {
+  const k = $('profilHerstellen'); k.disabled = true;
+  const soll = sollProfil(); let n = 0;
+  try{
+    for (const e of abweichungen()){
+      if (e.art === 'set'){ await befehl('SET/' + e.k + '/' + soll[e.k].wert, 4000); n++; }
+      else if (e.art === 'wi' && soll[e.k].roh){
+        const w = soll[e.k].roh, d = w.slice(7).replace(/^0+(?=\d{8}$)/, '').slice(-8).padStart(8, '0');
+        await befehl('PUT/' + w.slice(0, 7) + d + ' ', 4000); n++;
+      }
+    }
+    melden(n + ' Einstellung(en) wiederhergestellt.');
+  }catch(e2){ melden('Wiederherstellen: ' + fehlertext(e2), true); }
+  await einstellungenLesen(); einstellungenZeigen();
 };
 
 // ---------------------------------------------------------------- Plan (Absteckpunkte, Festpunkte, Station, Prisma)
