@@ -80,7 +80,7 @@ textarea{width:100%;min-height:90px;font-size:14px;border-radius:10px;border:1.5
 </head>
 <body>
 <div class="kopf">
-  <div><h1>RO-BIM Vermessung</h1><!-- v4 --><div class="unter" id="modell">keine Punkte geladen</div></div>
+  <div><h1>RO-BIM Vermessung</h1><!-- v6 --><div class="unter" id="modell">keine Punkte geladen</div></div>
   <div class="status" id="status"><span class="punkt"></span><span id="statustext">getrennt</span><span class="akku" id="akku" style="display:none"></span></div>
 </div>
 
@@ -118,7 +118,7 @@ textarea{width:100%;min-height:90px;font-size:14px;border-radius:10px;border:1.5
   <div class="plan" id="plan">
     <svg id="plansvg" xmlns="http://www.w3.org/2000/svg"></svg>
     <div class="knoepfe"><button id="zoomIn" aria-label="Vergrößern">+</button><button id="zoomOut" aria-label="Verkleinern">−</button><button id="zoomFit" aria-label="Alles zeigen">⤢</button></div>
-    <div class="legende">✕ Absteckpunkt · ⊕ Festpunkt · ▲ Station · ● Prisma</div>
+    <div class="legende">✕ Absteck · ⊕ Fest · ▲ Gerät · ● Prisma</div>
   </div>
   <div class="karte">
     <label>Absteckpunkt</label><select id="sollwahl"></select>
@@ -192,7 +192,7 @@ function klasse(v){ if (v == null) return ''; const c = Math.abs(v) * 100; retur
 function zeichen(v){ const k = klasse(v); return k === 'g' ? '✓' : k === 'o' ? '!' : k === 'r' ? '✗' : ''; }
 
 // ---------------------------------------------------------------- Daten aus dem Link
-let daten = {modell: '', fest: [], soll: [], tol: [1.0, 2.0], stand: ''};
+let daten = {modell: '', fest: [], soll: [], tol: [1.0, 2.0], stand: '', linien: []};
 function punkteAus(arr){ return (arr || []).map(a => ({pt: String(a[0]), e: a[1], n: a[2], h: a[3] == null ? null : a[3]})); }
 async function ladeLink(text){
   const i = text.indexOf('#'); const frag = i >= 0 ? text.slice(i + 1) : text;
@@ -206,13 +206,15 @@ async function ladeLink(text){
     txt = await out.text();
   } else txt = new TextDecoder().decode(bin);
   const j = JSON.parse(txt);
-  daten = {modell: j.m || '', stand: j.s || '', fest: punkteAus(j.f), soll: punkteAus(j.a), tol: j.t || [1.0, 2.0]};
+  const o = j.o || [0, 0];
+  const linien = (j.l || []).map(l => [o[0] + l[0] / 100, o[1] + l[1] / 100, o[0] + l[2] / 100, o[1] + l[3] / 100]);
+  daten = {modell: j.m || '', stand: j.s || '', fest: punkteAus(j.f), soll: punkteAus(j.a), tol: j.t || [1.0, 2.0], linien};
   speicher.set('daten', daten);
   return true;
 }
 function datenAnzeigen(){
   $('modell').textContent = daten.modell ? daten.modell + ' · ' + daten.fest.length + ' Festpunkte · ' + daten.soll.length + ' Absteckpunkte' : 'keine Punkte geladen – Link aus RO-BIM öffnen';
-  $('datenInfo').textContent = daten.modell ? `Modell ${daten.modell}, Stand ${daten.stand}. ${daten.fest.length} Festpunkte, ${daten.soll.length} Absteckpunkte.` : 'Noch keine Punkte. In RO-BIM: Stationierung → „Handy-Link erzeugen“.';
+  $('datenInfo').textContent = daten.modell ? `Modell ${daten.modell}, Stand ${daten.stand}. ${daten.fest.length} Festpunkte, ${daten.soll.length} Absteckpunkte${daten.linien && daten.linien.length ? ', Grundriss mit ' + daten.linien.length + ' Linien' : ''}.` : 'Noch keine Punkte. In RO-BIM: Stationierung → „Handy-Link erzeugen“.';
   auswahlFuellen(); festListe(); ansicht.m = 0; planZeichnen();
 }
 
@@ -643,6 +645,7 @@ function stationPasst(){
 }
 function alleplanpunkte(){
   const p = daten.soll.concat(daten.fest).map(x => [x.e, x.n]);
+  if (!p.length) for (const l of (daten.linien || [])) p.push([l[0], l[1]], [l[2], l[3]]);
   if (stationPasst()) p.push([letzteStation.e0, letzteStation.n0]);
   if (prisma && stationPasst()) p.push([prisma.e, prisma.n]);
   return p;
@@ -668,6 +671,16 @@ function planZeichnen(){
   const esc = t => String(t).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c]);
   const sel = finde(daten.soll, $('sollwahl').value);
   let o = `<rect width="${W}" height="${H}" fill="transparent"/>`;
+  // Grundriss aus RO-BIM (Wände, Platten, Fundamente, Stützen)
+  if (daten.linien && daten.linien.length){
+    let d = '';
+    for (const l of daten.linien){
+      const x1 = X(l[0]), y1 = Y(l[1]), x2 = X(l[2]), y2 = Y(l[3]);
+      if (Math.max(x1, x2) < -50 || Math.min(x1, x2) > W + 50 || Math.max(y1, y2) < -50 || Math.min(y1, y2) > H + 50) continue;
+      d += `M${x1.toFixed(1)},${y1.toFixed(1)}L${x2.toFixed(1)},${y2.toFixed(1)}`;
+    }
+    o += `<path d="${d}" stroke="${TA}" stroke-width="1.2" fill="none" stroke-linecap="round"/>`;
+  }
   // Maßstabsbalken
   const ziel = 80 / (m || 1), stufen = [0.1, 0.2, 0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500];
   const sb = stufen.find(x => x >= ziel) || 500;
@@ -677,8 +690,14 @@ function planZeichnen(){
   // Linie Station -> gewählter Punkt
   if (stationPasst() && sel)
     o += `<line x1="${X(letzteStation.e0)}" y1="${Y(letzteStation.n0)}" x2="${X(sel.e)}" y2="${Y(sel.n)}" stroke="${LI}" stroke-width="1.5" stroke-dasharray="6 5"/>`;
-  const label = (x, y, p, farbeT) => `<text x="${x + 9}" y="${y - 7}" font-size="13" font-weight="700" fill="${farbeT}">${esc(p.pt)}</text>` +
+  const belegt = [];
+  const label = (x, y, p, farbeT) => {
+    if (belegt.some(([bx, by]) => Math.abs(bx - x) < 70 && Math.abs(by - y) < 26)) return '';
+    belegt.push([x, y]); return labelText(x, y, p, farbeT);
+  };
+  const labelText = (x, y, p, farbeT) => `<text x="${x + 9}" y="${y - 7}" font-size="13" font-weight="700" fill="${farbeT}">${esc(p.pt)}</text>` +
     (p.h != null ? `<text x="${x + 9}" y="${y + 8}" font-size="11" fill="${L}">${(p.h >= 0 ? '+' : '') + m3(p.h)}</text>` : '');
+  if (sel) belegt.push([X(sel.e), Y(sel.n)]);
   for (const p of daten.fest){
     const x = X(p.e), y = Y(p.n);
     o += `<g><circle cx="${x}" cy="${y}" r="6" fill="none" stroke="${G}" stroke-width="2"/><path d="M${x - 9},${y}H${x + 9}M${x},${y - 9}V${y + 9}" stroke="${G}" stroke-width="1.5"/>${label(x, y, p, G)}</g>`;
@@ -689,7 +708,7 @@ function planZeichnen(){
     o += `<g class="sollp" data-pt="${encodeURIComponent(p.pt)}"><circle cx="${x}" cy="${y}" r="18" fill="transparent"/>` +
          `<path d="M${x - r},${y - r}L${x + r},${y + r}M${x - r},${y + r}L${x + r},${y - r}" stroke="${c}" stroke-width="${a ? 3 : 2}"/>` +
          (fertig ? `<circle cx="${x}" cy="${y}" r="${r + 4}" fill="none" stroke="${klasse(fertig.dl) === 'g' ? G : R}" stroke-width="1.5"/>` : '') +
-         label(x, y, p, c) + `</g>`;
+         (a ? labelText(x, y, p, c) : label(x, y, p, c)) + `</g>`;
   }
   if (stationPasst()){
     const x = X(letzteStation.e0), y = Y(letzteStation.n0);
