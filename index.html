@@ -72,7 +72,7 @@ textarea{width:100%;min-height:90px;font-size:14px;border-radius:10px;border:1.5
 </head>
 <body>
 <div class="kopf">
-  <div><h1>RO-BIM Vermessung</h1><div class="unter" id="modell">keine Punkte geladen</div></div>
+  <div><h1>RO-BIM Vermessung</h1><!-- v2 --><div class="unter" id="modell">keine Punkte geladen</div></div>
   <div class="status" id="status"><span class="punkt"></span><span id="statustext">getrennt</span></div>
 </div>
 
@@ -250,22 +250,53 @@ function befehl(text, ms = 3000, fehlerOk = false){
   belegt = lauf.catch(() => {});
   return lauf;
 }
+const FFE0 = '0000ffe0-0000-1000-8000-00805f9b34fb', FFE1 = '0000ffe1-0000-1000-8000-00805f9b34fb';
+const fehlertext = e => e == null ? 'unbekannter Fehler' : (e.message || e.name || (typeof e === 'string' ? e : JSON.stringify(e)) || String(e));
+async function geraetWaehlen(){
+  // 1. Versuch: gezielt nach dem Adapter filtern; 2. Versuch: alle Geräte anzeigen (manche Browser kennen namePrefix nicht)
+  try{
+    return await navigator.bluetooth.requestDevice({filters: [{namePrefix: 'BT578'}, {services: [FFE0]}], optionalServices: [FFE0]});
+  }catch(e){
+    log('requestDevice mit Filter: ' + fehlertext(e) + ' (' + (e && e.name) + ')');
+    if (e && e.name === 'NotFoundError' && /cancel/i.test(e.message || '')) throw e;
+    return await navigator.bluetooth.requestDevice({acceptAllDevices: true, optionalServices: [FFE0]});
+  }
+}
+async function kanalFinden(server){
+  try{ return await (await server.getPrimaryService(FFE0)).getCharacteristic(FFE1); }
+  catch(e){
+    log('FFE0/FFE1 nicht direkt gefunden: ' + fehlertext(e));
+    for (const d of await server.getPrimaryServices()){
+      for (const c of await d.getCharacteristics()){
+        log('Dienst ' + d.uuid + ' / ' + c.uuid + ' notify=' + c.properties.notify + ' write=' + (c.properties.write || c.properties.writeWithoutResponse));
+        if (c.properties.notify && (c.properties.write || c.properties.writeWithoutResponse)) return c;
+      }
+    }
+    throw new Error('Am Adapter keinen seriellen Kanal gefunden.');
+  }
+}
 async function verbinden(){
   if (!navigator.bluetooth){
     melden('Dieser Browser kann kein Bluetooth. Auf dem iPhone die App „Bluefy“ verwenden.', true); return;
   }
+  const k = $('verbinden'); k.disabled = true; k.textContent = 'sucht …';
   try{
-    const geraet = await navigator.bluetooth.requestDevice({filters: [{namePrefix: 'BT578'}], optionalServices: [0xffe0]});
+    const geraet = await geraetWaehlen();
+    log('Gerät: ' + (geraet.name || geraet.id));
     geraet.addEventListener('gattserverdisconnected', () => { kanal = null; statusSetzen(false); melden('Verbindung getrennt.'); });
+    k.textContent = 'verbindet …';
     const server = await geraet.gatt.connect();
-    const dienst = await server.getPrimaryService(0xffe0);
-    kanal = await dienst.getCharacteristic(0xffe1);
+    kanal = await kanalFinden(server);
     await kanal.startNotifications();
     kanal.addEventListener('characteristicvaluechanged', empfang);
     const r = await befehl('CONF/90', 3000, true);
     statusSetzen(true, r.startsWith('0090/') ? 'Akku ' + parseInt(r.slice(5), 10) : 'verbunden');
     wachHalten();
-  }catch(e){ melden('Verbinden fehlgeschlagen: ' + e.message, true); log('Verbinden: ' + e.message); }
+  }catch(e){
+    kanal = null;
+    melden('Verbinden fehlgeschlagen: ' + fehlertext(e), true); log('Verbinden: ' + fehlertext(e) + ' / ' + (e && e.name));
+  }
+  k.disabled = false; k.textContent = 'TC805 verbinden';
 }
 function statusSetzen(an, text){
   $('status').classList.toggle('an', an); $('statustext').textContent = an ? (text || 'verbunden') : 'getrennt';
