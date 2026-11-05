@@ -1,0 +1,584 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#2b2926">
+<title>RO-BIM Vermessung mobil</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f1ede7; --karte:#fffdf9; --text:#2b2926; --leise:#7a736b; --linie:#d9d2c7;
+  --taupe:#9c958c; --akzent:#5e574f; --gruen:#4f7a5a; --orange:#c98a2b; --rot:#a2412f;
+  --knopf:#2b2926; --knopftext:#f1ede7;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#1c1b19; --karte:#262421; --text:#ece7df; --leise:#a39b90; --linie:#3a3733;
+    --taupe:#8d867d; --akzent:#cfc6ba; --knopf:#ece7df; --knopftext:#1c1b19;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#1c1b19; --karte:#262421; --text:#ece7df; --leise:#a39b90; --linie:#3a3733;
+  --taupe:#8d867d; --akzent:#cfc6ba; --knopf:#ece7df; --knopftext:#1c1b19;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--text)}
+body{font-family:Rajdhani,"Segoe UI",system-ui,sans-serif;font-size:18px;line-height:1.35;
+  padding:calc(env(safe-area-inset-top) + 8px) 16px calc(env(safe-area-inset-bottom) + 84px)}
+h1{font-size:22px;letter-spacing:.06em;text-transform:uppercase;margin:4px 0 0;font-weight:700}
+h2{font-size:15px;letter-spacing:.12em;text-transform:uppercase;color:var(--leise);margin:22px 0 8px;font-weight:600}
+.kopf{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.unter{color:var(--leise);font-size:15px}
+.status{display:flex;align-items:center;gap:8px;font-size:15px;font-weight:600;padding:8px 12px;border-radius:999px;background:var(--karte);border:1px solid var(--linie);white-space:nowrap}
+.punkt{width:10px;height:10px;border-radius:50%;background:var(--rot)}
+.status.an .punkt{background:var(--gruen)}
+.karte{background:var(--karte);border:1px solid var(--linie);border-radius:14px;padding:14px;margin:10px 0}
+button{font:inherit;font-weight:700;letter-spacing:.04em;border:0;border-radius:12px;padding:14px 16px;background:var(--knopf);color:var(--knopftext);width:100%;min-height:52px;cursor:pointer}
+button.zweit{background:transparent;color:var(--text);border:1.5px solid var(--linie)}
+button.gross{min-height:76px;font-size:24px}
+button:disabled{opacity:.4}
+.reihe{display:flex;gap:10px}.reihe>*{flex:1}
+label{display:block;font-size:14px;color:var(--leise);margin-bottom:4px;letter-spacing:.04em}
+input,select{font:inherit;font-size:20px;width:100%;padding:10px 12px;border-radius:10px;border:1.5px solid var(--linie);background:var(--bg);color:var(--text)}
+.liste{list-style:none;margin:0;padding:0}
+.liste li{display:flex;align-items:center;gap:10px;padding:12px 4px;border-bottom:1px solid var(--linie)}
+.liste li:last-child{border-bottom:0}
+.liste .name{font-weight:700;min-width:64px}
+.liste .info{flex:1;color:var(--leise);font-size:15px}
+.liste li.wahl{background:color-mix(in srgb,var(--taupe) 18%,transparent);border-radius:8px}
+.ampel{font-weight:700;min-width:70px;text-align:right}
+.g{color:var(--gruen)}.o{color:var(--orange)}.r{color:var(--rot)}
+.tabs{position:fixed;left:0;right:0;bottom:0;display:flex;background:var(--karte);border-top:1px solid var(--linie);padding-bottom:env(safe-area-inset-bottom)}
+.tabs button{background:transparent;color:var(--leise);border-radius:0;font-size:15px;min-height:62px;padding:8px 2px}
+.tabs button.aktiv{color:var(--text);box-shadow:inset 0 3px 0 var(--text)}
+.seite{display:none}.seite.aktiv{display:block}
+.zahl{font-variant-numeric:tabular-nums}
+.anzeige{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.anzeige .feld{background:var(--bg);border-radius:12px;padding:12px;text-align:center}
+.anzeige .wert{font-size:34px;font-weight:700;line-height:1.1}
+.anzeige .was{font-size:14px;color:var(--leise);letter-spacing:.05em}
+.voll{grid-column:1/-1}
+.hinweis{font-size:15px;color:var(--leise)}
+.meldung{position:fixed;left:16px;right:16px;bottom:calc(env(safe-area-inset-bottom) + 76px);background:var(--text);color:var(--bg);padding:12px 14px;border-radius:12px;font-weight:600;display:none;z-index:9}
+.schalter{display:flex;background:var(--bg);border:1.5px solid var(--linie);border-radius:12px;padding:3px}
+.schalter button{background:transparent;color:var(--leise);min-height:42px;padding:8px}
+.schalter button.aktiv{background:var(--knopf);color:var(--knopftext)}
+pre{white-space:pre-wrap;font-size:13px;color:var(--leise);max-height:200px;overflow:auto}
+textarea{width:100%;min-height:90px;font-size:14px;border-radius:10px;border:1.5px solid var(--linie);background:var(--bg);color:var(--text);padding:8px}
+</style>
+</head>
+<body>
+<div class="kopf">
+  <div><h1>RO-BIM Vermessung</h1><div class="unter" id="modell">keine Punkte geladen</div></div>
+  <div class="status" id="status"><span class="punkt"></span><span id="statustext">getrennt</span></div>
+</div>
+
+<div class="karte" id="verbindenKarte">
+  <button id="verbinden">TC805 verbinden</button>
+  <div class="hinweis" style="margin-top:8px" id="bthinweis">Bluetooth-Adapter BT578 am Gerät, Gerät im Messbild. Am Laptop darf RO-BIM den Adapter nicht gleichzeitig belegen.</div>
+</div>
+
+<!-- STATION -->
+<section class="seite aktiv" id="s-station">
+  <h2>Stationierung</h2>
+  <div class="schalter" id="methode">
+    <button class="aktiv" data-m="frei">Freie Stationierung</button>
+    <button data-m="bekannt">Bekannter Standpunkt</button>
+  </div>
+  <div class="karte">
+    <div class="reihe">
+      <div><label>Gerätehöhe [m]</label><input id="hi" inputmode="decimal"></div>
+      <div><label>Reflektorhöhe [m]</label><input id="hr" inputmode="decimal"></div>
+    </div>
+    <div class="hinweis" style="margin-top:6px"><label style="display:inline"><input type="checkbox" id="nurlage" style="width:auto"> nur Lage (ohne Höhe)</label></div>
+  </div>
+  <div id="bekanntBox" style="display:none" class="karte">
+    <label>Standpunkt (Gerät steht darüber)</label><select id="stpunkt"></select>
+  </div>
+  <h2 id="festTitel">Festpunkt wählen, anzielen, messen</h2>
+  <div class="karte"><ul class="liste" id="festliste"></ul></div>
+  <button class="gross" id="festMessen" disabled>Messen</button>
+  <div id="ergebnis"></div>
+</section>
+
+<!-- ABSTECKEN -->
+<section class="seite" id="s-abstecken">
+  <h2>Abstecken</h2>
+  <div class="karte">
+    <label>Absteckpunkt</label><select id="sollwahl"></select>
+    <div class="hinweis" style="margin-top:6px" id="stationInfo">Station: wird beim ersten Messen aus dem Gerät gelesen</div>
+  </div>
+  <button class="gross" id="abMessen" disabled>Messen</button>
+  <div class="karte" id="abErgebnis" style="display:none">
+    <div class="anzeige">
+      <div class="feld"><div class="wert zahl" id="abLaengs">–</div><div class="was" id="abLaengsT">vor / zurück</div></div>
+      <div class="feld"><div class="wert zahl" id="abQuer">–</div><div class="was" id="abQuerT">links / rechts</div></div>
+      <div class="feld"><div class="wert zahl" id="abHoehe">–</div><div class="was" id="abHoeheT">Höhe</div></div>
+      <div class="feld"><div class="wert zahl" id="abLage">–</div><div class="was">Lage gesamt</div></div>
+    </div>
+    <div class="hinweis" style="margin-top:8px">Richtungen vom Gerät aus gesehen.</div>
+    <div class="reihe" style="margin-top:10px"><button class="zweit" id="abNochmal">Nochmal messen</button><button id="abSpeichern">Als Ist merken</button></div>
+  </div>
+</section>
+
+<!-- KONTROLLE -->
+<section class="seite" id="s-kontrolle">
+  <h2>Kontrollpunkt</h2>
+  <div class="karte"><label>Bekannter Punkt</label><select id="kwahl"></select></div>
+  <button class="gross" id="kMessen" disabled>Messen</button>
+  <div id="kErgebnis"></div>
+</section>
+
+<!-- PUNKTE -->
+<section class="seite" id="s-punkte">
+  <h2>Gemerkte Ist-Punkte</h2>
+  <div class="karte"><ul class="liste" id="istliste"><li class="hinweis">noch keine</li></ul></div>
+  <button id="istSenden" disabled>Ist-Punkte im TC805 speichern</button>
+  <div class="hinweis" style="margin:6px 0 0">Werden als Koordinaten mit vorangestelltem „I“ gespeichert (z. B. IBOPL1). Im Büro in RO-BIM: „Messung holen“ → „Koordinaten holen“.</div>
+  <h2>Absteckpunkte ins Gerät</h2>
+  <button class="zweit" id="sollSenden" disabled>Absteckpunkte an TC805 senden</button>
+  <h2>Punkte aus RO-BIM</h2>
+  <div class="karte">
+    <div class="hinweis" id="datenInfo">–</div>
+    <details style="margin-top:8px"><summary class="hinweis">Link einfügen</summary>
+      <textarea id="einfuegen" placeholder="Link aus RO-BIM hier einfügen"></textarea>
+      <button class="zweit" id="einfuegenOk" style="margin-top:6px">Übernehmen</button>
+    </details>
+  </div>
+  <h2>Protokoll</h2>
+  <pre id="log"></pre>
+</section>
+
+<nav class="tabs">
+  <button class="aktiv" data-s="station">Station</button>
+  <button data-s="abstecken">Abstecken</button>
+  <button data-s="kontrolle">Kontrolle</button>
+  <button data-s="punkte">Punkte</button>
+</nav>
+<div class="meldung" id="meldung"></div>
+
+<script>
+"use strict";
+// ---------------------------------------------------------------- Hilfen
+const $ = id => document.getElementById(id);
+const GON = Math.PI / 200;
+const speicher = {
+  get(k, d){ try{ const v = localStorage.getItem('robim.' + k); return v === null ? d : JSON.parse(v); }catch(e){ return d; } },
+  set(k, v){ try{ localStorage.setItem('robim.' + k, JSON.stringify(v)); }catch(e){} }
+};
+const m3 = v => v == null ? '–' : v.toLocaleString('de-AT', {minimumFractionDigits:3, maximumFractionDigits:3});
+const cm = v => v == null ? '–' : (v * 100).toLocaleString('de-AT', {minimumFractionDigits:1, maximumFractionDigits:1}) + ' cm';
+const zahl = s => parseFloat(String(s).replace(',', '.'));
+let meldTimer;
+function melden(t, lang){ const m = $('meldung'); m.textContent = t; m.style.display = 'block'; clearTimeout(meldTimer); meldTimer = setTimeout(() => m.style.display = 'none', lang ? 6000 : 3000); }
+function log(t){ const l = $('log'); l.textContent = (new Date().toLocaleTimeString('de-AT') + '  ' + t + '\n' + l.textContent).slice(0, 6000); }
+function klasse(v){ if (v == null) return ''; const c = Math.abs(v) * 100; return c <= daten.tol[0] ? 'g' : c <= daten.tol[1] ? 'o' : 'r'; }
+function zeichen(v){ const k = klasse(v); return k === 'g' ? '✓' : k === 'o' ? '!' : k === 'r' ? '✗' : ''; }
+
+// ---------------------------------------------------------------- Daten aus dem Link
+let daten = {modell: '', fest: [], soll: [], tol: [1.0, 2.0], stand: ''};
+function punkteAus(arr){ return (arr || []).map(a => ({pt: String(a[0]), e: a[1], n: a[2], h: a[3] == null ? null : a[3]})); }
+async function ladeLink(text){
+  const i = text.indexOf('#'); const frag = i >= 0 ? text.slice(i + 1) : text;
+  const p = new URLSearchParams(frag); const roh = p.get('d'); if (!roh) return false;
+  const b64 = roh.replace(/-/g, '+').replace(/_/g, '/');
+  const bin = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+  let txt;
+  if (p.get('z') === '1'){
+    const ds = new DecompressionStream('deflate');
+    const out = new Response(new Blob([bin]).stream().pipeThrough(ds));
+    txt = await out.text();
+  } else txt = new TextDecoder().decode(bin);
+  const j = JSON.parse(txt);
+  daten = {modell: j.m || '', stand: j.s || '', fest: punkteAus(j.f), soll: punkteAus(j.a), tol: j.t || [1.0, 2.0]};
+  speicher.set('daten', daten);
+  return true;
+}
+function datenAnzeigen(){
+  $('modell').textContent = daten.modell ? daten.modell + ' · ' + daten.fest.length + ' Festpunkte · ' + daten.soll.length + ' Absteckpunkte' : 'keine Punkte geladen – Link aus RO-BIM öffnen';
+  $('datenInfo').textContent = daten.modell ? `Modell ${daten.modell}, Stand ${daten.stand}. ${daten.fest.length} Festpunkte, ${daten.soll.length} Absteckpunkte.` : 'Noch keine Punkte. In RO-BIM: Stationierung → „Handy-Link erzeugen“.';
+  auswahlFuellen(); festListe();
+}
+
+// ---------------------------------------------------------------- Bluetooth (IRXON BT578, BLE FFE0/FFE1)
+// Adapter arbeitet mit 8N1, der TC805 mit 7E1: das Paritätsbit wird hier gerechnet (Bit 8 = gerade Parität).
+let kanal = null, puffer = '', zeilen = [], warter = null, belegt = Promise.resolve();
+function paritaet(text){
+  return Uint8Array.from(text, ch => { let b = ch.charCodeAt(0) & 0x7f, n = 0, x = b; while (x){ n += x & 1; x >>= 1; } return n % 2 ? b | 0x80 : b; });
+}
+function empfang(ev){
+  const v = new Uint8Array(ev.target.value.buffer);
+  for (const b of v) puffer += String.fromCharCode(b & 0x7f);
+  let m;
+  while ((m = puffer.match(/[\r\n\x1a]/))){
+    const z = puffer.slice(0, m.index).trim(), sep = m[0];
+    puffer = puffer.slice(m.index + 1);
+    if (z) zeilen.push(z);
+    if (sep === '\x1a') zeilen.push('\x1a');
+  }
+  if (zeilen.length && warter){ const w = warter; warter = null; w(); }
+}
+async function schreiben(text){
+  const bytes = paritaet(text);
+  for (let i = 0; i < bytes.length; i += 20){
+    const teil = bytes.slice(i, i + 20);
+    if (kanal.writeValueWithoutResponse) await kanal.writeValueWithoutResponse(teil); else await kanal.writeValue(teil);
+  }
+}
+function zeile(ms){
+  return new Promise(res => {
+    if (zeilen.length) return res(zeilen.shift());
+    const t = setTimeout(() => { warter = null; res(null); }, ms);
+    warter = () => { clearTimeout(t); res(zeilen.shift()); };
+  });
+}
+const FEHLER = {'@W100':'Gerät beschäftigt','@W127':'Befehl unbekannt','@W139':'Distanzmessung fehlgeschlagen','@E121':'Paritätsfehler','@E124':'Pufferüberlauf','@E155':'Schwaches Signal','@E158':'Gerät nicht horizontiert','@E112':'Akku schwach'};
+function befehl(text, ms = 3000, fehlerOk = false){
+  const lauf = belegt.then(async () => {
+    if (!kanal) throw new Error('Nicht verbunden.');
+    zeilen = []; puffer = '';
+    await schreiben(text + '\r\n');
+    const r = await zeile(ms);
+    log('→ ' + text.replace('\x1a', '<Ende>') + '   ← ' + (r == null ? '(keine Antwort)' : r));
+    if (r == null) throw new Error('Keine Antwort vom TC805 (eingeschaltet, im Messbild?).');
+    if (r.startsWith('@') && !fehlerOk) throw new Error(r.slice(0, 5) + ': ' + (FEHLER[r.slice(0, 5)] || 'Fehlermeldung des Geräts'));
+    return r;
+  });
+  belegt = lauf.catch(() => {});
+  return lauf;
+}
+async function verbinden(){
+  if (!navigator.bluetooth){
+    melden('Dieser Browser kann kein Bluetooth. Auf dem iPhone die App „Bluefy“ verwenden.', true); return;
+  }
+  try{
+    const geraet = await navigator.bluetooth.requestDevice({filters: [{namePrefix: 'BT578'}], optionalServices: [0xffe0]});
+    geraet.addEventListener('gattserverdisconnected', () => { kanal = null; statusSetzen(false); melden('Verbindung getrennt.'); });
+    const server = await geraet.gatt.connect();
+    const dienst = await server.getPrimaryService(0xffe0);
+    kanal = await dienst.getCharacteristic(0xffe1);
+    await kanal.startNotifications();
+    kanal.addEventListener('characteristicvaluechanged', empfang);
+    const r = await befehl('CONF/90', 3000, true);
+    statusSetzen(true, r.startsWith('0090/') ? 'Akku ' + parseInt(r.slice(5), 10) : 'verbunden');
+    wachHalten();
+  }catch(e){ melden('Verbinden fehlgeschlagen: ' + e.message, true); log('Verbinden: ' + e.message); }
+}
+function statusSetzen(an, text){
+  $('status').classList.toggle('an', an); $('statustext').textContent = an ? (text || 'verbunden') : 'getrennt';
+  $('verbindenKarte').style.display = an ? 'none' : 'block';
+  for (const id of ['festMessen', 'abMessen', 'kMessen', 'istSenden', 'sollSenden']) $(id).disabled = !an;
+  if (an){ $('istSenden').disabled = !ist.length; $('sollSenden').disabled = !daten.soll.length; festKnopf(); }
+}
+let sperre = null;
+async function wachHalten(){ try{ if ('wakeLock' in navigator) sperre = await navigator.wakeLock.request('screen'); }catch(e){} }
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && kanal) wachHalten(); });
+
+// ---------------------------------------------------------------- GSI
+function winkel(einh, roh){ const v = parseInt(roh, 10); if (einh === '3') return v / 1e5 * 400 / 360; if (einh === '5') return v / 1000 * 400 / 6400; return v / 1e5; }
+function strecke(einh, roh){ const v = parseInt(roh, 10); return ({'0': v / 1e3, '1': v / 1e3 * .3048, '6': v / 1e4, '7': v / 1e4 * .3048, '8': v / 1e5})[einh] ?? v / 1e3; }
+function gsi(z){
+  const b = {};
+  for (let w of z.trim().split(/\s+/)){
+    if (w[0] === '*') w = w.slice(1);
+    if (w.length < 8 || !/^\d\d/.test(w) || !'+-'.includes(w[6])) continue;
+    const wi = w.slice(0, 2), einh = w[5], vz = w[6] === '-' ? -1 : 1, d = w.slice(7);
+    if (wi === '21') b.hz = winkel(einh, d); else if (wi === '22') b.v = winkel(einh, d);
+    else { const k = {'31':'sd','84':'e0','85':'n0','86':'h0','87':'hr','88':'hi'}[wi]; if (k) b[k] = vz * strecke(einh, d); }
+  }
+  return b;
+}
+function feld(wert, stellen, dez){ const n = Math.round(Math.abs(wert) * 10 ** dez); const s = String(n); if (s.length > stellen) return null; return (wert < 0 ? '-' : '+') + s.padStart(stellen, '0'); }
+async function putWert(wi, wert, einh = '0', dez = 3){
+  const f8 = feld(wert, 8, dez);
+  if (f8) return befehl(`PUT/${wi}...${einh}${f8} `, 4000);
+  return befehl(`PUT/*${wi}...${einh}${feld(wert, 16, dez)} `, 4000);
+}
+
+// ---------------------------------------------------------------- Gerät
+async function bereit(){
+  for (let i = 0; i < 16; i++){ const r = await befehl('GET/I/WI21', 3000, true); if (!r.startsWith('@W100')) return; await new Promise(s => setTimeout(s, 500)); }
+}
+async function messen(){
+  await bereit();
+  const d = await befehl('GET/M/WI31', 20000);
+  const w = await befehl('GET/I/WI21/WI22', 4000);
+  const b = gsi(d + ' ' + w);
+  if (!(b.sd > 0) || b.hz == null || b.v == null) throw new Error('Keine Distanz gemessen – Prisma angezielt?');
+  return {hz: b.hz, v: b.v, sd: b.sd};
+}
+async function stationLesen(){
+  const st = {};
+  for (const wi of ['84', '85', '86', '87', '88']) Object.assign(st, gsi(await befehl('GET/I/WI' + wi, 3000)));
+  return st;
+}
+async function stationSchreiben(r){
+  await putWert('84', r.e0); await putWert('85', r.n0);
+  if (r.hi != null){ if (r.h0 != null) await putWert('86', r.h0); await putWert('88', r.hi); await putWert('87', r.hr); }
+  const hz = gsi(await befehl('GET/I/WI21/WI22', 4000)).hz;
+  const neu = ((hz + r.omega) % 400 + 400) % 400;
+  await putWert('21', neu, '2', 5);
+  return neu;
+}
+function koordZeile(p){
+  const name = String(p.pt).slice(0, 8);
+  const t = ['11....+' + name.padStart(8, '0'), '81...0' + feld(p.e, 8, 3), '82...0' + feld(p.n, 8, 3)];
+  if (p.h != null) t.push('83...0' + feld(p.h, 8, 3));
+  if (t.some(x => x.includes('null'))) throw new Error('Koordinate zu groß für das Gerät: ' + p.pt);
+  return t.join(' ');
+}
+async function hochladen(punkte){
+  await befehl('CONF/90', 3000);
+  await befehl('SND/COORDS', 8000);
+  for (const p of punkte) await befehl(koordZeile(p), 8000);
+  await belegt; zeilen = []; await schreiben('\x1a\r\n'); await zeile(2000);
+  log('Ende gesendet (' + punkte.length + ' Punkte)');
+}
+
+// ---------------------------------------------------------------- Rechnung (wie RO-BIM)
+const richtung = (de, dn) => ((Math.atan2(de, dn) / GON) % 400 + 400) % 400;
+function lage(b){ let {hz, v, sd} = b; if (v > 200){ v = 400 - v; hz = (hz + 200) % 400; } return [sd * Math.sin(v * GON), hz, sd * Math.cos(v * GON)]; }
+function freieStation(beob, fest, hi, hr){
+  const src = [], dst = [];
+  for (const b of beob){ const [hd, hz] = lage(b); src.push([hd * Math.sin(hz * GON), hd * Math.cos(hz * GON)]); const f = fest[b.pt]; dst.push([f.e, f.n]); }
+  const n = src.length;
+  const cx = src.reduce((a, p) => a + p[0], 0) / n, cy = src.reduce((a, p) => a + p[1], 0) / n;
+  const ce = dst.reduce((a, p) => a + p[0], 0) / n, cn = dst.reduce((a, p) => a + p[1], 0) / n;
+  let A = 0, B = 0, Q = 0;
+  src.forEach((p, i) => { const x = p[0] - cx, y = p[1] - cy, e = dst[i][0] - ce, nn = dst[i][1] - cn; A += e * x + nn * y; B += e * y - nn * x; Q += x * x + y * y; });
+  if (Q < 1e-6) throw new Error('Punkte liegen zu nah beisammen.');
+  const w = Math.atan2(B, A), c = Math.cos(w), s = Math.sin(w);
+  const e0 = ce - (c * cx + s * cy), n0 = cn - (c * cy - s * cx);
+  let vv = 0; const punkte = [];
+  src.forEach((p, i) => { const ve = dst[i][0] - (e0 + c * p[0] + s * p[1]), vn = dst[i][1] - (n0 + c * p[1] - s * p[0]); vv += ve * ve + vn * vn; punkte.push({pt: beob[i].pt, vl: Math.hypot(ve, vn), vh: null}); });
+  let h0 = null;
+  if (hi != null){
+    const w2 = beob.filter(b => fest[b.pt].h != null).map(b => [b.pt, fest[b.pt].h - hi - lage(b)[2] + hr]);
+    if (w2.length){ h0 = w2.reduce((a, x) => a + x[1], 0) / w2.length; w2.forEach(([pt, hx]) => { punkte.find(p => p.pt === pt).vh = h0 - hx; }); }
+  }
+  const strecke2 = n === 2 ? Math.hypot(src[0][0] - src[1][0], src[0][1] - src[1][1]) - Math.hypot(dst[0][0] - dst[1][0], dst[0][1] - dst[1][1]) : null;
+  return {e0, n0, h0, omega: ((w / GON) % 400 + 400) % 400, s0: 2 * n - 3 > 0 ? Math.sqrt(vv / (2 * n - 3)) : null, punkte, strecke2, hi, hr};
+}
+function bekannteStation(st, an, b, hi, hr){
+  const t = richtung(an.e - st.e, an.n - st.n);
+  const [hd, hz, dz] = lage(b);
+  const r = {e0: st.e, n0: st.n, h0: hi != null ? st.h : null, omega: ((t - hz) % 400 + 400) % 400, hi, hr, punkte: null,
+             strecke2: hd - Math.hypot(an.e - st.e, an.n - st.n), hoehe: null};
+  if (hi != null && an.h != null){ const ha = an.h - hi - dz + hr; if (r.h0 == null) r.h0 = ha; else r.hoehe = st.h - ha; }
+  return r;
+}
+function polar(st, b){
+  const [hd, hz, dz] = lage(b);
+  const e = st.e0 + hd * Math.sin(hz * GON), n = st.n0 + hd * Math.cos(hz * GON);
+  const h = (st.h0 != null && st.hi != null && st.hr != null && !(st.h0 === 0 && st.hi === 0)) ? st.h0 + st.hi + dz - st.hr : null;
+  return {e, n, h};
+}
+
+// ---------------------------------------------------------------- Station
+let methode = 'frei', beob = [], gewaehlt = null, letzteStation = null;
+$('hi').value = String(speicher.get('hi', 1.5)).replace('.', ',');
+$('hr').value = String(speicher.get('hr', 1.5)).replace('.', ',');
+function hoehen(){
+  if ($('nurlage').checked) return [null, null];
+  const hi = zahl($('hi').value), hr = zahl($('hr').value);
+  if (!(hi > 0) || !(hr >= 0)) throw new Error('Gerätehöhe und Reflektorhöhe eingeben.');
+  speicher.set('hi', hi); speicher.set('hr', hr);
+  return [hi, hr];
+}
+document.querySelectorAll('#methode button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('#methode button').forEach(x => x.classList.toggle('aktiv', x === b));
+  methode = b.dataset.m; beob = []; gewaehlt = null; $('ergebnis').innerHTML = '';
+  $('bekanntBox').style.display = methode === 'bekannt' ? 'block' : 'none';
+  $('festTitel').textContent = methode === 'bekannt' ? 'Anschlusspunkt wählen, anzielen, messen' : 'Festpunkt wählen, anzielen, messen';
+  festListe();
+});
+function festListe(){
+  const ul = $('festliste'); ul.innerHTML = '';
+  if (!daten.fest.length){ ul.innerHTML = '<li class="hinweis">Keine Festpunkte – Link aus RO-BIM öffnen.</li>'; return; }
+  const st = $('stpunkt').value;
+  for (const p of daten.fest){
+    if (methode === 'bekannt' && p.pt === st) continue;
+    const li = document.createElement('li');
+    const gem = beob.find(b => b.pt === p.pt);
+    const rest = letzteRechnung && letzteRechnung.punkte ? letzteRechnung.punkte.find(x => x.pt === p.pt) : null;
+    li.innerHTML = `<span class="name"></span><span class="info zahl"></span><span class="ampel"></span>`;
+    li.children[0].textContent = p.pt;
+    li.children[1].textContent = gem ? `gemessen · ${m3(gem.sd)} m` : `H ${m3(p.h)}`;
+    if (rest){ li.children[2].textContent = cm(rest.vl) + ' ' + zeichen(rest.vl); li.children[2].className = 'ampel ' + klasse(rest.vl); }
+    if (gewaehlt === p.pt) li.classList.add('wahl');
+    li.onclick = () => { gewaehlt = p.pt; festListe(); festKnopf(); };
+    if (gem){ const x = document.createElement('button'); x.className = 'zweit'; x.style.cssText = 'width:auto;min-height:36px;padding:4px 10px'; x.textContent = '✕';
+      x.onclick = ev => { ev.stopPropagation(); beob = beob.filter(b => b.pt !== p.pt); rechnen(); festListe(); }; li.appendChild(x); }
+    ul.appendChild(li);
+  }
+}
+function festKnopf(){ $('festMessen').disabled = !kanal || !gewaehlt; $('festMessen').textContent = gewaehlt ? gewaehlt + ' messen' : 'Punkt wählen'; }
+let letzteRechnung = null;
+$('festMessen').onclick = async () => {
+  const k = $('festMessen'); k.disabled = true; k.textContent = 'misst …';
+  try{
+    const [hi, hr] = hoehen();
+    if (beob.length === 0 && hi != null){ await putWert('88', hi); await putWert('87', hr); }
+    const b = await messen(); b.pt = gewaehlt;
+    beob = beob.filter(x => x.pt !== gewaehlt); beob.push(b);
+    if (methode === 'bekannt') beob = [b];
+    melden(`${gewaehlt}: ${m3(b.sd)} m`);
+    gewaehlt = null; rechnen();
+  }catch(e){ melden(e.message, true); }
+  festListe(); festKnopf();
+};
+function rechnen(){
+  const box = $('ergebnis'); letzteRechnung = null;
+  let hi, hr; try{ [hi, hr] = hoehen(); }catch(e){ hi = hr = null; }
+  const fmap = Object.fromEntries(daten.fest.map(p => [p.pt, p]));
+  try{
+    if (methode === 'frei'){
+      if (beob.length < 2){ box.innerHTML = beob.length ? '<div class="hinweis">Noch einen Punkt messen.</div>' : ''; return; }
+      letzteRechnung = freieStation(beob, fmap, hi, hr);
+    } else {
+      if (!beob.length) { box.innerHTML = ''; return; }
+      letzteRechnung = bekannteStation(fmap[$('stpunkt').value], fmap[beob[0].pt], beob[0], hi, hr);
+    }
+  }catch(e){ box.innerHTML = `<div class="karte r">${e.message}</div>`; return; }
+  const r = letzteRechnung;
+  let html = `<div class="karte"><div class="anzeige">
+    <div class="feld"><div class="was">Rechts (E)</div><div class="wert zahl" style="font-size:24px">${m3(r.e0)}</div></div>
+    <div class="feld"><div class="was">Hoch (N)</div><div class="wert zahl" style="font-size:24px">${m3(r.n0)}</div></div>
+    <div class="feld"><div class="was">Höhe</div><div class="wert zahl" style="font-size:24px">${m3(r.h0)}</div></div>
+    <div class="feld"><div class="was">${r.s0 != null ? 'Genauigkeit s0' : 'Strecke Soll/Ist'}</div><div class="wert zahl ${klasse(r.s0 ?? r.strecke2)}" style="font-size:24px">${cm(r.s0 ?? r.strecke2)}</div></div></div>`;
+  if (r.punkte && r.punkte.length === 2) html += `<div class="hinweis" style="margin-top:8px">Nur 2 Punkte: einzige Kontrolle ist die Strecke. Ein dritter Punkt macht es sicher.</div>`;
+  if (r.hoehe != null) html += `<div class="hinweis ${klasse(r.hoehe)}" style="margin-top:8px">Höhenkontrolle am Anschluss: ${cm(r.hoehe)}</div>`;
+  html += `</div><button class="gross" id="stSetzen">Station ins Gerät setzen</button>`;
+  box.innerHTML = html;
+  $('stSetzen').disabled = !kanal;
+  $('stSetzen').onclick = async () => {
+    const k = $('stSetzen'); k.disabled = true; k.textContent = 'schreibt …';
+    try{
+      const hz = await stationSchreiben(r);
+      letzteStation = await stationLesen();
+      speicher.set('station', {zeit: Date.now(), r});
+      k.textContent = 'Station gesetzt ✓';
+      melden(`Station gesetzt. Hz ${hz.toFixed(4).replace('.', ',')} gon. Jetzt einen Kontrollpunkt messen.`, true);
+      $('stationInfo').textContent = `Station E ${m3(letzteStation.e0)} · N ${m3(letzteStation.n0)} · H ${m3(letzteStation.h0)}`;
+    }catch(e){ k.disabled = false; k.textContent = 'Station ins Gerät setzen'; melden(e.message, true); }
+  };
+}
+$('stpunkt').onchange = () => { beob = []; rechnen(); festListe(); };
+$('nurlage').onchange = () => { rechnen(); };
+
+// ---------------------------------------------------------------- Abstecken
+let ist = speicher.get('ist', []), letzteIst = null;
+function auswahlFuellen(){
+  const opt = (arr) => arr.map(p => `<option value="${encodeURIComponent(p.pt)}">${p.pt.replace(/</g, '')}${p.h != null ? '  ·  H ' + m3(p.h) : ''}</option>`).join('');
+  $('sollwahl').innerHTML = daten.soll.length ? opt(daten.soll) : '<option>keine Absteckpunkte</option>';
+  $('kwahl').innerHTML = daten.fest.length || daten.soll.length ? opt(daten.fest.concat(daten.soll)) : '<option>keine Punkte</option>';
+  $('stpunkt').innerHTML = opt(daten.fest);
+  const s = speicher.get('soll', null); if (s) $('sollwahl').value = s;
+  istListe();
+}
+const finde = (arr, v) => arr.find(p => encodeURIComponent(p.pt) === v);
+async function stationHolen(){
+  if (!letzteStation) letzteStation = await stationLesen();
+  $('stationInfo').textContent = `Station E ${m3(letzteStation.e0)} · N ${m3(letzteStation.n0)} · H ${m3(letzteStation.h0)}`;
+  return letzteStation;
+}
+async function abMessen(){
+  const soll = finde(daten.soll, $('sollwahl').value); if (!soll) return;
+  speicher.set('soll', $('sollwahl').value);
+  const k = $('abMessen'); k.disabled = true; k.textContent = 'misst …';
+  try{
+    const st = await stationHolen();
+    const b = await messen();
+    const p = polar(st, b);
+    const ve = p.e - st.e0, vn = p.n - st.n0, d = Math.hypot(ve, vn) || 1;
+    const ue = ve / d, un = vn / d, de = soll.e - p.e, dn = soll.n - p.n;
+    const laengs = de * ue + dn * un, quer = de * un - dn * ue;
+    const dh = (soll.h != null && p.h != null) ? soll.h - p.h : null;
+    const dl = Math.hypot(de, dn);
+    const setz = (id, idT, v, plus, minus) => { $(id).textContent = v == null ? '–' : cm(Math.abs(v)); $(id).className = 'wert zahl ' + klasse(v);
+      $(idT).textContent = v == null ? '' : (Math.abs(v) < 0.0005 ? 'passt' : (v > 0 ? plus : minus)); };
+    setz('abLaengs', 'abLaengsT', laengs, '↑ vom Gerät weg', '↓ zum Gerät hin');
+    setz('abQuer', 'abQuerT', quer, '→ nach rechts', '← nach links');
+    setz('abHoehe', 'abHoeheT', dh, '▲ höher', '▼ tiefer');
+    $('abLage').textContent = cm(dl); $('abLage').className = 'wert zahl ' + klasse(dl);
+    $('abErgebnis').style.display = 'block';
+    letzteIst = {pt: soll.pt, e: p.e, n: p.n, h: p.h, dl, dh};
+    if (navigator.vibrate) navigator.vibrate(klasse(dl) === 'g' ? [80, 60, 80] : 200);
+  }catch(e){ melden(e.message, true); }
+  k.disabled = !kanal; k.textContent = 'Messen';
+}
+$('abMessen').onclick = abMessen; $('abNochmal').onclick = abMessen;
+$('abSpeichern').onclick = () => {
+  if (!letzteIst) return;
+  ist = ist.filter(x => x.pt !== letzteIst.pt); ist.push(letzteIst); speicher.set('ist', ist); istListe();
+  melden(letzteIst.pt + ' gemerkt (' + ist.length + ' Ist-Punkte).');
+};
+function istListe(){
+  const ul = $('istliste');
+  if (!ist.length){ ul.innerHTML = '<li class="hinweis">noch keine</li>'; $('istSenden').disabled = true; return; }
+  ul.innerHTML = '';
+  for (const p of ist){
+    const li = document.createElement('li');
+    li.innerHTML = '<span class="name"></span><span class="info zahl"></span><span class="ampel"></span>';
+    li.children[0].textContent = 'I' + p.pt; li.children[1].textContent = `E ${m3(p.e)} · N ${m3(p.n)}`;
+    li.children[2].textContent = cm(p.dl); li.children[2].className = 'ampel ' + klasse(p.dl);
+    const x = document.createElement('button'); x.className = 'zweit'; x.style.cssText = 'width:auto;min-height:36px;padding:4px 10px'; x.textContent = '✕';
+    x.onclick = () => { ist = ist.filter(q => q !== p); speicher.set('ist', ist); istListe(); }; li.appendChild(x);
+    ul.appendChild(li);
+  }
+  $('istSenden').disabled = !kanal;
+}
+$('istSenden').onclick = async () => {
+  const k = $('istSenden'); k.disabled = true;
+  try{ await hochladen(ist.map(p => ({pt: ('I' + p.pt).slice(0, 8), e: p.e, n: p.n, h: p.h})));
+    melden(ist.length + ' Ist-Punkte im TC805 gespeichert.', true); ist = []; speicher.set('ist', ist); istListe();
+  }catch(e){ melden(e.message, true); k.disabled = false; }
+};
+$('sollSenden').onclick = async () => {
+  const k = $('sollSenden'); k.disabled = true;
+  try{ await hochladen(daten.soll); melden(daten.soll.length + ' Absteckpunkte im TC805.', true); }catch(e){ melden(e.message, true); }
+  k.disabled = !kanal;
+};
+
+// ---------------------------------------------------------------- Kontrolle
+$('kMessen').onclick = async () => {
+  const p0 = finde(daten.fest.concat(daten.soll), $('kwahl').value); if (!p0) return;
+  const k = $('kMessen'); k.disabled = true; k.textContent = 'misst …';
+  try{
+    const st = await stationHolen(); const b = await messen(); const p = polar(st, b);
+    const dl = Math.hypot(p.e - p0.e, p.n - p0.n), dh = (p.h != null && p0.h != null) ? p.h - p0.h : null;
+    $('kErgebnis').innerHTML = `<div class="karte"><div class="anzeige">
+      <div class="feld"><div class="wert zahl ${klasse(dl)}">${cm(dl)} ${zeichen(dl)}</div><div class="was">Lage</div></div>
+      <div class="feld"><div class="wert zahl ${klasse(dh)}">${cm(dh)}</div><div class="was">Höhe</div></div>
+      <div class="feld voll hinweis zahl">ΔE ${cm(p.e - p0.e)} · ΔN ${cm(p.n - p0.n)}</div></div></div>`;
+  }catch(e){ melden(e.message, true); }
+  k.disabled = !kanal; k.textContent = 'Messen';
+};
+
+// ---------------------------------------------------------------- Tabs & Start
+document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('.tabs button').forEach(x => x.classList.toggle('aktiv', x === b));
+  document.querySelectorAll('.seite').forEach(s => s.classList.toggle('aktiv', s.id === 's-' + b.dataset.s));
+  window.scrollTo(0, 0);
+});
+$('verbinden').onclick = verbinden;
+$('einfuegenOk').onclick = async () => {
+  try{ if (await ladeLink($('einfuegen').value.trim())){ datenAnzeigen(); melden('Punkte übernommen.'); } else melden('Kein gültiger RO-BIM-Link.'); }
+  catch(e){ melden('Link nicht lesbar: ' + e.message, true); }
+};
+(async () => {
+  daten = speicher.get('daten', daten);
+  if (location.hash.length > 3){
+    try{ if (await ladeLink(location.hash)){ melden('Punkte aus RO-BIM geladen.'); history.replaceState(null, '', location.pathname); } }
+    catch(e){ melden('Link nicht lesbar: ' + e.message, true); }
+  }
+  datenAnzeigen();
+  if (!navigator.bluetooth) $('bthinweis').textContent = 'Dieser Browser kann kein Bluetooth. Auf dem iPhone die kostenlose App „Bluefy“ öffnen und diese Seite dort aufrufen.';
+  statusSetzen(false);
+})();
+</script>
+</body>
+</html>
