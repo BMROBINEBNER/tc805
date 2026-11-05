@@ -135,6 +135,16 @@ textarea{width:100%;min-height:90px;font-size:14px;border-radius:10px;border:1.5
     <label>Absteckpunkt</label><select id="sollwahl"></select>
     <div class="hinweis" style="margin-top:6px" id="stationInfo">Station: wird beim ersten Messen aus dem Gerät gelesen</div>
   </div>
+  <div class="reihe" style="margin-bottom:10px"><button class="zweit" id="ausrichten" disabled>Gerät ausrichten (alleine)</button></div>
+  <div class="karte" id="ausBox" style="display:none">
+    <div class="anzeige">
+      <div class="feld voll"><div class="wert zahl" id="ausDreh" style="font-size:clamp(30px,11vw,46px)">–</div><div class="was" id="ausDrehT">Gerät drehen</div></div>
+      <div class="feld"><div class="wert zahl" id="ausHz" style="font-size:22px">–</div><div class="was">Soll-Richtung</div></div>
+      <div class="feld"><div class="wert zahl" id="ausDist" style="font-size:22px">–</div><div class="was">Entfernung zum Punkt</div></div>
+    </div>
+    <div class="hinweis" style="margin-top:8px" id="ausHinweis">Am Gerät mit dem Feintrieb drehen, bis „✓ passt“ steht, dann Horizontalklemme fest. EGL (Leitlicht) am Gerät einschalten und mit dem Prisma auf die angezeigte Entfernung hinausgehen.</div>
+    <div class="reihe" style="margin-top:10px"><button class="zweit" id="ausStop">Fertig ausgerichtet</button></div>
+  </div>
   <button class="gross" id="abMessen" disabled>Messen</button>
   <div class="karte" id="abErgebnis" style="display:none">
     <div class="anzeige">
@@ -226,7 +236,7 @@ textarea{width:100%;min-height:90px;font-size:14px;border-radius:10px;border:1.5
     <div class="hinweis" style="margin-top:8px" id="profilInfo"></div>
   </div>
   <h2>Protokoll</h2>
-  <div class="hinweis">Seitenversion 13 · Stand 05.11.2026</div>
+  <div class="hinweis">Seitenversion 14 · Stand 05.11.2026</div>
   <pre id="log"></pre>
 </section>
 
@@ -402,7 +412,8 @@ function statusSetzen(an, text){
   $('status').classList.toggle('an', an); $('statustext').textContent = an ? (text || 'verbunden') : 'getrennt';
   clearInterval(akkuTimer); if (an) akkuTimer = setInterval(akkuLesen, 120000); else akkuZeigen(0);
   $('verbindenKarte').style.display = an ? 'none' : 'block';
-  for (const id of ['festMessen', 'abMessen', 'kMessen', 'istSenden', 'sollSenden', 'aufMessen', 'aufOertlich']) $(id).disabled = !an;
+  for (const id of ['festMessen', 'abMessen', 'kMessen', 'istSenden', 'sollSenden', 'aufMessen', 'aufOertlich', 'ausrichten']) $(id).disabled = !an;
+  if (!an) ausrichtenStop();
   $('aufGeraet').disabled = !an || !aufmass.length;
   if (an){ $('istSenden').disabled = !ist.length; $('sollSenden').disabled = !daten.soll.length; festKnopf(); }
 }
@@ -627,6 +638,7 @@ async function stationHolen(){
   return letzteStation;
 }
 async function abMessen(){
+  if (ausLauf) ausrichtenStop();   // Live-Anzeige aus, Ausrichtung bleibt
   const soll = finde(daten.soll, $('sollwahl').value); if (!soll) return;
   speicher.set('soll', $('sollwahl').value);
   const k = $('abMessen'); k.disabled = true; k.textContent = 'misst …';
@@ -637,13 +649,19 @@ async function abMessen(){
     const p = polar(st, b);
     const ve = p.e - st.e0, vn = p.n - st.n0, d = Math.hypot(ve, vn) || 1;
     const ue = ve / d, un = vn / d, de = soll.e - p.e, dn = soll.n - p.n;
-    const laengs = de * ue + dn * un, quer = de * un - dn * ue;
+    let laengs = de * ue + dn * un, quer = de * un - dn * ue;
+    const eingewiesen = ausrichtung && ausrichtung.pt === soll.pt;
+    if (eingewiesen){
+      // Fernrohr steht fest in Soll-Richtung: vor/zurück aus der Strecke, seitlich nur über das Leitlicht (EGL)
+      laengs = ausrichtung.hd - Math.hypot(p.e - st.e0, p.n - st.n0); quer = null;
+    }
     const dh = (soll.h != null && p.h != null) ? soll.h - p.h : null;
-    const dl = Math.hypot(de, dn);
+    const dl = eingewiesen ? Math.abs(laengs) : Math.hypot(de, dn);
     const setz = (id, idT, v, plus, minus) => { $(id).textContent = v == null ? '–' : cm(Math.abs(v)); $(id).className = 'wert zahl ' + klasse(v);
       $(idT).textContent = v == null ? '' : (Math.abs(v) < 0.0005 ? 'passt' : (v > 0 ? plus : minus)); };
     setz('abLaengs', 'abLaengsT', laengs, '↑ vom Gerät weg', '↓ zum Gerät hin');
     setz('abQuer', 'abQuerT', quer, '→ nach rechts', '← nach links');
+    if (eingewiesen){ $('abQuer').textContent = 'EGL'; $('abQuer').className = 'wert zahl'; $('abQuerT').textContent = 'seitlich nach Leitlicht'; }
     setz('abHoehe', 'abHoeheT', dh, '▲ höher', '▼ tiefer');
     $('abLage').textContent = cm(dl); $('abLage').className = 'wert zahl ' + klasse(dl);
     $('abErgebnis').style.display = 'block';
@@ -706,6 +724,41 @@ $('kMessen').onclick = async () => {
   }catch(e){ melden(e.message, true); }
   k.disabled = !kanal; k.textContent = 'Messen';
 };
+
+// ---------------------------------------------------------------- Gerät ausrichten (Abstecken alleine)
+let ausLauf = false, ausrichtung = null, ausWarGruen = false;
+async function ausrichtenStart(){
+  const soll = finde(daten.soll, $('sollwahl').value); if (!soll) return;
+  try{
+    const st = await stationHolen();
+    if (!stationPasst()) throw new Error('Die Station im Gerät passt nicht zu den Punkten – zuerst stationieren.');
+    const de = soll.e - st.e0, dn = soll.n - st.n0, t = richtung(de, dn), hd = Math.hypot(de, dn);
+    ausrichtung = {pt: soll.pt, t, hd}; ausLauf = true; ausWarGruen = false;
+    $('ausBox').style.display = 'block'; $('ausHz').textContent = t.toFixed(4).replace('.', ',') + ' gon'; $('ausDist').textContent = m3(hd) + ' m';
+    $('ausrichten').disabled = true;
+    while (ausLauf && kanal){
+      let hz = null;
+      try{ const b = gsi(await befehl('GET/I/WI21', 3000, true)); hz = b.hz; }catch(e){}
+      if (hz != null){
+        const d = ((t - hz) % 400 + 600) % 400 - 200;            // + = im Uhrzeigersinn (nach rechts) drehen
+        const seitlich = Math.abs(d * GON * hd);                 // Versatz am Zielpunkt in m
+        const gruen = seitlich <= 0.003, orange = seitlich <= 0.02;
+        $('ausDreh').textContent = gruen ? '✓ passt' : (d > 0 ? '→ ' : '← ') + Math.abs(d).toFixed(Math.abs(d) < 1 ? 4 : 2).replace('.', ',') + ' gon';
+        $('ausDreh').className = 'wert zahl ' + (gruen ? 'g' : orange ? 'o' : 'r');
+        $('ausDrehT').textContent = gruen ? 'Horizontalklemme fest – mit dem Prisma hinausgehen'
+          : (d > 0 ? 'nach rechts drehen' : 'nach links drehen') + ' · am Punkt ' + cm(seitlich) + ' daneben';
+        if (gruen && !ausWarGruen && navigator.vibrate) navigator.vibrate([60, 40, 60]);
+        ausWarGruen = gruen;
+      }
+      await new Promise(r => setTimeout(r, 350));
+    }
+  }catch(e){ melden(fehlertext(e), true); }
+  $('ausrichten').disabled = !kanal;
+}
+function ausrichtenStop(){ ausLauf = false; $('ausBox').style.display = 'none'; }
+$('ausrichten').onclick = ausrichtenStart;
+$('ausStop').onclick = () => { ausrichtenStop(); if (ausrichtung) melden('Ausrichtung auf ' + ausrichtung.pt + ' bleibt aktiv – mit dem Prisma hinausgehen und messen.', true); };
+$('sollwahl').addEventListener('change', () => { ausrichtenStop(); ausrichtung = null; });
 
 // ---------------------------------------------------------------- Aufmaß (Bestand, Gelände, eigene Fixpunkte)
 const CODES = [['Ecke', 'E'], ['Kanaldeckel', 'KD'], ['Mauerkrone', 'MK'], ['Fixpunkt BME', 'FP'], ['Gelände', 'G'],
@@ -1110,6 +1163,7 @@ document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => {
   document.querySelectorAll('.tabs button').forEach(x => x.classList.toggle('aktiv', x === b));
   document.querySelectorAll('.seite').forEach(s => s.classList.toggle('aktiv', s.id === 's-' + b.dataset.s));
   window.scrollTo(0, 0);
+  if (b.dataset.s !== 'abstecken') ausrichtenStop();
   if (b.dataset.s === 'abstecken') planNach('ab');
   if (b.dataset.s === 'aufmass') planNach('auf');
 });
