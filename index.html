@@ -161,8 +161,9 @@ textarea{width:100%;min-height:90px;font-size:14px;border-radius:10px;border:1.5
       </div>
       <div class="reihe" style="margin-top:8px">
         <div><label>Gerätehöhe [m]</label><input id="aufHi" inputmode="decimal"></div>
-        <div style="display:flex;align-items:flex-end"><button class="zweit" id="aufOertlich" disabled>Ins Gerät setzen</button></div>
+        <div><label>Reflektorhöhe [m]</label><input id="aufHr2" inputmode="decimal"></div>
       </div>
+      <button class="zweit" id="aufOertlich" disabled style="margin-top:8px">Ins Gerät setzen</button>
       <div class="hinweis" style="margin-top:6px">Die Richtung bleibt, wie das Gerät gerade steht. Alle Punkte dieser Aufstellung liegen dann in diesem örtlichen System. Später in RO-BIM mit „Bestand einpassen“ ins Projekt übernehmen.</div>
     </details>
     <div class="hinweis" style="margin-top:8px">Oder auf eigenen Punkten stationieren: Reiter „Station“ – eigene Fixpunkte stehen dort mit „(eigen)“.</div>
@@ -170,6 +171,13 @@ textarea{width:100%;min-height:90px;font-size:14px;border-radius:10px;border:1.5
   <h2>Punkt aufnehmen</h2>
   <div class="karte">
     <div class="codes" id="codes"></div>
+    <div id="codeNeu" style="display:none;margin-top:10px">
+      <div class="reihe">
+        <div style="flex:2"><label>Neuer Code (Bezeichnung)</label><input id="codeName" maxlength="24" placeholder="z. B. Hydrant"></div>
+        <div><label>Kürzel</label><input id="codeKurz" maxlength="3" autocapitalize="characters" placeholder="HY"></div>
+      </div>
+      <div class="reihe" style="margin-top:8px"><button class="zweit" id="codeAbbruch">Abbrechen</button><button id="codeOk">Code anlegen</button></div>
+    </div>
     <div class="reihe" style="margin-top:10px">
       <div><label>Punktname</label><input id="aufName" maxlength="8" autocapitalize="characters"></div>
       <div><label>Reflektorhöhe [m]</label><input id="aufHr" inputmode="decimal"></div>
@@ -218,7 +226,7 @@ textarea{width:100%;min-height:90px;font-size:14px;border-radius:10px;border:1.5
     <div class="hinweis" style="margin-top:8px" id="profilInfo"></div>
   </div>
   <h2>Protokoll</h2>
-  <div class="hinweis">Seitenversion 12 · Stand 05.11.2026</div>
+  <div class="hinweis">Seitenversion 13 · Stand 05.11.2026</div>
   <pre id="log"></pre>
 </section>
 
@@ -711,19 +719,51 @@ function fest(){
 }
 function alleNamen(){ return new Set(aufmass.map(p => p.pt).concat(fest().map(p => p.pt), daten.soll.map(p => p.pt))); }
 function naechsterName(code){
-  const pre = (CODES.find(c => c[0] === code) || ['', 'P'])[1], belegt = alleNamen();
+  const pre = (alleCodes().find(c => c[0] === code) || ['', 'P'])[1], belegt = alleNamen();
   for (let i = 1; i < 10000; i++){ const n = pre + i; if (!belegt.has(n)) return n; }
   return pre;
 }
+let eigeneCodes = speicher.get('eigenecodes', []), codesBearbeiten = false;
+function alleCodes(){ return CODES.concat(eigeneCodes); }
 function codesZeigen(){
   const box = $('codes'); box.innerHTML = '';
-  for (const [c] of CODES){
-    const b = document.createElement('button'); b.textContent = c; b.className = c === aufCode ? 'aktiv' : '';
-    b.onclick = () => { aufCode = c; speicher.set('aufcode', c); $('aufName').value = naechsterName(c); codesZeigen(); };
+  for (const [c, kurz] of alleCodes()){
+    const eigen = eigeneCodes.some(x => x[0] === c);
+    const b = document.createElement('button'); b.className = c === aufCode ? 'aktiv' : '';
+    b.textContent = (codesBearbeiten && eigen ? '✕ ' : '') + c;
+    b.onclick = () => {
+      if (codesBearbeiten && eigen){
+        if (!confirm('Code „' + c + '“ löschen? Bereits gemessene Punkte behalten ihren Code.')) return;
+        eigeneCodes = eigeneCodes.filter(x => x[0] !== c); speicher.set('eigenecodes', eigeneCodes);
+        if (aufCode === c) aufCode = 'Ecke';
+        codesZeigen(); return;
+      }
+      aufCode = c; speicher.set('aufcode', c); $('aufName').value = naechsterName(c); codesZeigen();
+    };
     box.appendChild(b);
+  }
+  const neu = document.createElement('button'); neu.textContent = '＋ eigener Code';
+  neu.onclick = () => { $('codeNeu').style.display = 'block'; $('codeName').focus(); };
+  box.appendChild(neu);
+  if (eigeneCodes.length){
+    const bearb = document.createElement('button'); bearb.textContent = codesBearbeiten ? 'fertig' : 'eigene löschen …';
+    bearb.onclick = () => { codesBearbeiten = !codesBearbeiten; codesZeigen(); };
+    box.appendChild(bearb);
   }
   if (!$('aufName').value) $('aufName').value = naechsterName(aufCode);
 }
+$('codeAbbruch').onclick = () => { $('codeNeu').style.display = 'none'; };
+$('codeOk').onclick = () => {
+  const name = $('codeName').value.trim();
+  let kurz = $('codeKurz').value.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (!name){ melden('Bitte eine Bezeichnung eingeben.'); return; }
+  if (alleCodes().some(x => x[0].toLowerCase() === name.toLowerCase())){ melden('Diesen Code gibt es schon.'); return; }
+  if (!kurz) kurz = name.replace(/[^A-Za-z]/g, '').slice(0, 2).toUpperCase() || 'P';
+  eigeneCodes.push([name, kurz.slice(0, 3)]); speicher.set('eigenecodes', eigeneCodes);
+  aufCode = name; speicher.set('aufcode', name);
+  $('codeName').value = ''; $('codeKurz').value = ''; $('codeNeu').style.display = 'none';
+  $('aufName').value = naechsterName(name); codesZeigen(); melden('Code „' + name + '“ angelegt.');
+};
 function aufListe(){
   const ul = $('aufliste');
   if (!aufmass.length){ ul.innerHTML = '<li class="hinweis">noch keine</li>'; }
@@ -744,11 +784,14 @@ function aufListe(){
 function aufStationZeigen(){
   const st = letzteStation;
   $('aufStation').textContent = st && st.e0 != null
-    ? `Station im Gerät: E ${m3(st.e0)} · N ${m3(st.n0)} · H ${m3(st.h0)} · Gerätehöhe ${m3(st.hi)}`
+    ? `Station im Gerät: E ${m3(st.e0)} · N ${m3(st.n0)} · H ${m3(st.h0)} · Gerätehöhe ${m3(st.hi)} · Reflektorhöhe ${m3(st.hr)}`
     : 'Station im Gerät: wird beim Verbinden gelesen';
 }
 $('aufHi').value = String(speicher.get('hi', 1.5)).replace('.', ',');
 $('aufHr').value = String(speicher.get('hr', 1.5)).replace('.', ',');
+$('aufHr2').value = $('aufHr').value;
+$('aufHr').addEventListener('input', () => { $('aufHr2').value = $('aufHr').value; });
+$('aufHr2').addEventListener('input', () => { $('aufHr').value = $('aufHr2').value; });
 $('aufOertlich').onclick = async () => {
   const k = $('aufOertlich'); k.disabled = true;
   try{
