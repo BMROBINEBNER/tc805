@@ -65,8 +65,11 @@ input,select{font:inherit;font-size:20px;width:100%;padding:10px 12px;border-rad
 .marke{width:22px;aspect-ratio:468/560;background:var(--text);flex-shrink:0;
   -webkit-mask:url(logo.png) top/100% auto no-repeat;mask:url(logo.png) top/100% auto no-repeat}
 .titel{display:flex;align-items:center;gap:10px}
+.codes{display:flex;flex-wrap:wrap;gap:8px}
+.codes button{width:auto;min-height:44px;padding:8px 12px;font-size:16px;background:var(--bg);color:var(--text);border:1.5px solid var(--linie)}
+.codes button.aktiv{background:var(--knopf);color:var(--knopftext);border-color:var(--knopf)}
 .tabs{position:fixed;left:0;right:0;bottom:0;display:flex;background:var(--karte);border-top:1px solid var(--linie);padding-bottom:env(safe-area-inset-bottom)}
-.tabs button{background:transparent;color:var(--leise);border-radius:0;font-size:15px;min-height:62px;padding:8px 2px}
+.tabs button{background:transparent;color:var(--leise);border-radius:0;font-size:14px;min-height:62px;padding:8px 2px}
 .tabs button.aktiv{color:var(--text);box-shadow:inset 0 3px 0 var(--text)}
 .seite{display:none}.seite.aktiv{display:block}
 .zahl{font-variant-numeric:tabular-nums}
@@ -122,10 +125,11 @@ textarea{width:100%;min-height:90px;font-size:14px;border-radius:10px;border:1.5
 <!-- ABSTECKEN -->
 <section class="seite" id="s-abstecken">
   <h2>Abstecken</h2>
+  <div id="planPlatzAb"></div>
   <div class="plan" id="plan">
     <svg id="plansvg" xmlns="http://www.w3.org/2000/svg"></svg>
     <div class="knoepfe"><button id="zoomIn" aria-label="Vergrößern">+</button><button id="zoomOut" aria-label="Verkleinern">−</button><button id="zoomFit" aria-label="Alles zeigen">⤢</button></div>
-    <div class="legende">✕ Absteck · ⊕ Fest · ▲ Gerät · ● Prisma</div>
+    <div class="legende" id="legende">✕ Absteck · ⊕ Fest · ▲ Gerät · ● Prisma</div>
   </div>
   <div class="karte">
     <label>Absteckpunkt</label><select id="sollwahl"></select>
@@ -145,6 +149,42 @@ textarea{width:100%;min-height:90px;font-size:14px;border-radius:10px;border:1.5
 </section>
 
 <!-- KONTROLLE -->
+<section class="seite" id="s-aufmass">
+  <h2>Aufstellung</h2>
+  <div class="karte">
+    <div class="hinweis" id="aufStation">Station im Gerät: wird beim Verbinden gelesen</div>
+    <details style="margin-top:8px"><summary class="hinweis">Örtlich aufstellen (eigenes System, ohne Festpunkte)</summary>
+      <div class="reihe" style="margin-top:8px">
+        <div><label>Rechts (E)</label><input id="aufE" inputmode="decimal" value="1000"></div>
+        <div><label>Hoch (N)</label><input id="aufN" inputmode="decimal" value="1000"></div>
+        <div><label>Höhe</label><input id="aufH" inputmode="decimal" value="100"></div>
+      </div>
+      <div class="reihe" style="margin-top:8px">
+        <div><label>Gerätehöhe [m]</label><input id="aufHi" inputmode="decimal"></div>
+        <div style="display:flex;align-items:flex-end"><button class="zweit" id="aufOertlich" disabled>Ins Gerät setzen</button></div>
+      </div>
+      <div class="hinweis" style="margin-top:6px">Die Richtung bleibt, wie das Gerät gerade steht. Alle Punkte dieser Aufstellung liegen dann in diesem örtlichen System. Später in RO-BIM mit „Bestand einpassen“ ins Projekt übernehmen.</div>
+    </details>
+    <div class="hinweis" style="margin-top:8px">Oder auf eigenen Punkten stationieren: Reiter „Station“ – eigene Fixpunkte stehen dort mit „(eigen)“.</div>
+  </div>
+  <h2>Punkt aufnehmen</h2>
+  <div class="karte">
+    <div class="codes" id="codes"></div>
+    <div class="reihe" style="margin-top:10px">
+      <div><label>Punktname</label><input id="aufName" maxlength="8" autocapitalize="characters"></div>
+      <div><label>Reflektorhöhe [m]</label><input id="aufHr" inputmode="decimal"></div>
+    </div>
+  </div>
+  <button class="gross" id="aufMessen" disabled>Messen</button>
+  <h2>Plan</h2>
+  <div id="planPlatzAuf"></div>
+  <h2>Aufgenommene Punkte</h2>
+  <div class="karte"><ul class="liste" id="aufliste"><li class="hinweis">noch keine</li></ul></div>
+  <div class="reihe"><button id="aufTeilen" disabled>Liste teilen (CSV)</button><button class="zweit" id="aufGeraet" disabled>Im TC805 sichern</button></div>
+  <div class="hinweis" style="margin-top:6px">CSV am PC in RO-BIM: Stationierung → „Festpunkte aus Vermesser-Liste“ bzw. „Bestand einpassen“. Spalten: Punkt; Rechts; Hoch; Höhe; Code.</div>
+  <button class="zweit" id="aufLeeren" style="margin-top:14px">Liste leeren</button>
+</section>
+
 <section class="seite" id="s-kontrolle">
   <h2>Kontrollpunkt</h2>
   <div class="karte"><label>Bekannter Punkt</label><select id="kwahl"></select></div>
@@ -178,13 +218,14 @@ textarea{width:100%;min-height:90px;font-size:14px;border-radius:10px;border:1.5
     <div class="hinweis" style="margin-top:8px" id="profilInfo"></div>
   </div>
   <h2>Protokoll</h2>
-  <div class="hinweis">Seitenversion 10 · Stand 05.11.2026</div>
+  <div class="hinweis">Seitenversion 12 · Stand 05.11.2026</div>
   <pre id="log"></pre>
 </section>
 
 <nav class="tabs">
   <button class="aktiv" data-s="station">Station</button>
   <button data-s="abstecken">Abstecken</button>
+  <button data-s="aufmass">Aufmaß</button>
   <button data-s="kontrolle">Kontrolle</button>
   <button data-s="punkte">Punkte</button>
 </nav>
@@ -230,8 +271,8 @@ async function ladeLink(text){
   return true;
 }
 function datenAnzeigen(){
-  $('modell').textContent = daten.modell ? daten.modell + ' · ' + daten.fest.length + ' Festpunkte · ' + daten.soll.length + ' Absteckpunkte' : 'keine Punkte geladen – Link aus RO-BIM öffnen';
-  $('datenInfo').textContent = daten.modell ? `Modell ${daten.modell}, Stand ${daten.stand}. ${daten.fest.length} Festpunkte, ${daten.soll.length} Absteckpunkte${daten.linien && daten.linien.length ? ', Grundriss mit ' + daten.linien.length + ' Linien' : ''}.` : 'Noch keine Punkte. In RO-BIM: Stationierung → „Handy-Link erzeugen“.';
+  $('modell').textContent = daten.modell ? daten.modell + ' · ' + fest().length + ' Festpunkte · ' + daten.soll.length + ' Absteckpunkte' : 'keine Punkte geladen – Link aus RO-BIM öffnen';
+  $('datenInfo').textContent = daten.modell ? `Modell ${daten.modell}, Stand ${daten.stand}. ${fest().length} Festpunkte, ${daten.soll.length} Absteckpunkte${daten.linien && daten.linien.length ? ', Grundriss mit ' + daten.linien.length + ' Linien' : ''}.` : 'Noch keine Punkte. In RO-BIM: Stationierung → „Handy-Link erzeugen“.';
   auswahlFuellen(); festListe(); ansicht.m = 0; planZeichnen();
 }
 
@@ -353,7 +394,8 @@ function statusSetzen(an, text){
   $('status').classList.toggle('an', an); $('statustext').textContent = an ? (text || 'verbunden') : 'getrennt';
   clearInterval(akkuTimer); if (an) akkuTimer = setInterval(akkuLesen, 120000); else akkuZeigen(0);
   $('verbindenKarte').style.display = an ? 'none' : 'block';
-  for (const id of ['festMessen', 'abMessen', 'kMessen', 'istSenden', 'sollSenden']) $(id).disabled = !an;
+  for (const id of ['festMessen', 'abMessen', 'kMessen', 'istSenden', 'sollSenden', 'aufMessen', 'aufOertlich']) $(id).disabled = !an;
+  $('aufGeraet').disabled = !an || !aufmass.length;
   if (an){ $('istSenden').disabled = !ist.length; $('sollSenden').disabled = !daten.soll.length; festKnopf(); }
 }
 let sperre = null;
@@ -480,16 +522,16 @@ document.querySelectorAll('#methode button').forEach(b => b.onclick = () => {
 });
 function festListe(){
   const ul = $('festliste'); ul.innerHTML = '';
-  if (!daten.fest.length){ ul.innerHTML = '<li class="hinweis">Keine Festpunkte – Link aus RO-BIM öffnen.</li>'; return; }
+  if (!fest().length){ ul.innerHTML = '<li class="hinweis">Keine Festpunkte – Link aus RO-BIM öffnen.</li>'; return; }
   const st = $('stpunkt').value;
-  for (const p of daten.fest){
+  for (const p of fest()){
     if (methode === 'bekannt' && p.pt === st) continue;
     const li = document.createElement('li');
     const gem = beob.find(b => b.pt === p.pt);
     const rest = letzteRechnung && letzteRechnung.punkte ? letzteRechnung.punkte.find(x => x.pt === p.pt) : null;
     li.innerHTML = `<span class="name"></span><span class="info zahl"></span><span class="ampel"></span>`;
     li.children[0].textContent = p.pt;
-    li.children[1].textContent = gem ? `gemessen · ${m3(gem.sd)} m` : `H ${m3(p.h)}`;
+    li.children[1].textContent = (gem ? `gemessen · ${m3(gem.sd)} m` : `H ${m3(p.h)}`) + (p.eigen ? ' · (eigen)' : '');
     if (rest){ li.children[2].textContent = cm(rest.vl) + ' ' + zeichen(rest.vl); li.children[2].className = 'ampel ' + klasse(rest.vl); }
     if (gewaehlt === p.pt) li.classList.add('wahl');
     li.onclick = () => { gewaehlt = p.pt; festListe(); festKnopf(); };
@@ -516,7 +558,7 @@ $('festMessen').onclick = async () => {
 function rechnen(){
   const box = $('ergebnis'); letzteRechnung = null;
   let hi, hr; try{ [hi, hr] = hoehen(); }catch(e){ hi = hr = null; }
-  const fmap = Object.fromEntries(daten.fest.map(p => [p.pt, p]));
+  const fmap = Object.fromEntries(fest().map(p => [p.pt, p]));
   try{
     if (methode === 'frei'){
       if (beob.length < 2){ box.innerHTML = beob.length ? '<div class="hinweis">Noch einen Punkt messen.</div>' : ''; return; }
@@ -558,14 +600,15 @@ let ist = speicher.get('ist', []), letzteIst = null;
 function auswahlFuellen(){
   const opt = (arr) => arr.map(p => `<option value="${encodeURIComponent(p.pt)}">${p.pt.replace(/</g, '')}${p.h != null ? '  ·  H ' + m3(p.h) : ''}</option>`).join('');
   $('sollwahl').innerHTML = daten.soll.length ? opt(daten.soll) : '<option>keine Absteckpunkte</option>';
-  $('kwahl').innerHTML = daten.fest.length || daten.soll.length ? opt(daten.fest.concat(daten.soll)) : '<option>keine Punkte</option>';
-  $('stpunkt').innerHTML = opt(daten.fest);
+  $('kwahl').innerHTML = fest().length || daten.soll.length ? opt(fest().concat(daten.soll)) : '<option>keine Punkte</option>';
+  $('stpunkt').innerHTML = opt(fest());
   const s = speicher.get('soll', null); if (s) $('sollwahl').value = s;
   istListe();
 }
 const finde = (arr, v) => arr.find(p => encodeURIComponent(p.pt) === v);
 function stationInfoZeigen(){
   const el = $('stationInfo'); if (!letzteStation) return;
+  try{ aufStationZeigen(); }catch(e){}
   if (!stationPasst()){
     el.innerHTML = '<b class="r">Die Station im Gerät passt nicht zu den Punkten.</b> Zuerst stationieren (Reiter „Station“).';
   } else el.textContent = `Station E ${m3(letzteStation.e0)} · N ${m3(letzteStation.n0)} · H ${m3(letzteStation.h0)}`;
@@ -643,7 +686,7 @@ $('sollSenden').onclick = async () => {
 
 // ---------------------------------------------------------------- Kontrolle
 $('kMessen').onclick = async () => {
-  const p0 = finde(daten.fest.concat(daten.soll), $('kwahl').value); if (!p0) return;
+  const p0 = finde(fest().concat(daten.soll), $('kwahl').value); if (!p0) return;
   const k = $('kMessen'); k.disabled = true; k.textContent = 'misst …';
   try{
     const st = await stationHolen(); const b = await messen(); const p = polar(st, b);
@@ -654,6 +697,114 @@ $('kMessen').onclick = async () => {
       <div class="feld voll hinweis zahl">ΔE ${cm(p.e - p0.e)} · ΔN ${cm(p.n - p0.n)}</div></div></div>`;
   }catch(e){ melden(e.message, true); }
   k.disabled = !kanal; k.textContent = 'Messen';
+};
+
+// ---------------------------------------------------------------- Aufmaß (Bestand, Gelände, eigene Fixpunkte)
+const CODES = [['Ecke', 'E'], ['Kanaldeckel', 'KD'], ['Mauerkrone', 'MK'], ['Fixpunkt BME', 'FP'], ['Gelände', 'G'],
+               ['Böschung oben', 'BO'], ['Böschung unten', 'BU'], ['Straße/Rand', 'R'], ['Baum', 'BA'], ['Sonstiges', 'P']];
+let aufmass = speicher.get('aufmass', []), aufCode = speicher.get('aufcode', 'Ecke');
+function eigeneFest(){ return aufmass.filter(p => p.code === 'Fixpunkt BME').map(p => ({pt: p.pt, e: p.e, n: p.n, h: p.h, eigen: true})); }
+function fest(){
+  // Festpunkte aus RO-BIM + eigene Fixpunkte (gleicher Name: RO-BIM gewinnt, z. B. nach „Bestand einpassen“)
+  const namen = new Set((daten.fest || []).map(p => p.pt));
+  return (daten.fest || []).concat(eigeneFest().filter(p => !namen.has(p.pt)));
+}
+function alleNamen(){ return new Set(aufmass.map(p => p.pt).concat(fest().map(p => p.pt), daten.soll.map(p => p.pt))); }
+function naechsterName(code){
+  const pre = (CODES.find(c => c[0] === code) || ['', 'P'])[1], belegt = alleNamen();
+  for (let i = 1; i < 10000; i++){ const n = pre + i; if (!belegt.has(n)) return n; }
+  return pre;
+}
+function codesZeigen(){
+  const box = $('codes'); box.innerHTML = '';
+  for (const [c] of CODES){
+    const b = document.createElement('button'); b.textContent = c; b.className = c === aufCode ? 'aktiv' : '';
+    b.onclick = () => { aufCode = c; speicher.set('aufcode', c); $('aufName').value = naechsterName(c); codesZeigen(); };
+    box.appendChild(b);
+  }
+  if (!$('aufName').value) $('aufName').value = naechsterName(aufCode);
+}
+function aufListe(){
+  const ul = $('aufliste');
+  if (!aufmass.length){ ul.innerHTML = '<li class="hinweis">noch keine</li>'; }
+  else {
+    ul.innerHTML = '';
+    for (const p of aufmass.slice().reverse()){
+      const li = document.createElement('li');
+      li.innerHTML = '<span class="name"></span><span class="info zahl"></span>';
+      li.children[0].textContent = p.pt;
+      li.children[1].textContent = `${p.code} · E ${m3(p.e)} · N ${m3(p.n)}${p.h != null ? ' · H ' + m3(p.h) : ''}`;
+      const x = document.createElement('button'); x.className = 'zweit'; x.style.cssText = 'width:auto;min-height:36px;padding:4px 10px'; x.textContent = '✕';
+      x.onclick = () => { aufmass = aufmass.filter(q => q !== p); speicher.set('aufmass', aufmass); aufListe(); festListe(); auswahlFuellen(); planZeichnen(); };
+      li.appendChild(x); ul.appendChild(li);
+    }
+  }
+  $('aufTeilen').disabled = !aufmass.length; $('aufGeraet').disabled = !kanal || !aufmass.length;
+}
+function aufStationZeigen(){
+  const st = letzteStation;
+  $('aufStation').textContent = st && st.e0 != null
+    ? `Station im Gerät: E ${m3(st.e0)} · N ${m3(st.n0)} · H ${m3(st.h0)} · Gerätehöhe ${m3(st.hi)}`
+    : 'Station im Gerät: wird beim Verbinden gelesen';
+}
+$('aufHi').value = String(speicher.get('hi', 1.5)).replace('.', ',');
+$('aufHr').value = String(speicher.get('hr', 1.5)).replace('.', ',');
+$('aufOertlich').onclick = async () => {
+  const k = $('aufOertlich'); k.disabled = true;
+  try{
+    const e0 = zahl($('aufE').value), n0 = zahl($('aufN').value), h0 = zahl($('aufH').value), hi = zahl($('aufHi').value), hr = zahl($('aufHr').value);
+    if ([e0, n0, h0, hi, hr].some(v => isNaN(v))) throw new Error('Bitte alle Werte eingeben.');
+    speicher.set('hi', hi); speicher.set('hr', hr);
+    await putWert('84', e0); await putWert('85', n0); await putWert('86', h0); await putWert('88', hi); await putWert('87', hr);
+    letzteStation = await stationLesen(); aufStationZeigen(); stationInfoZeigen(); ansicht.m = 0; planZeichnen();
+    melden('Örtliche Station gesetzt. Jetzt Punkte aufnehmen.', true);
+  }catch(e){ melden(fehlertext(e), true); }
+  k.disabled = !kanal;
+};
+$('aufMessen').onclick = async () => {
+  const k = $('aufMessen'); k.disabled = true; k.textContent = 'misst …';
+  try{
+    let name = $('aufName').value.trim().toUpperCase().replace(/\s+/g, '');
+    if (!name) name = naechsterName(aufCode);
+    if (name.length > 8) throw new Error('Punktname höchstens 8 Zeichen (Gerätegrenze).');
+    if (aufmass.some(p => p.pt === name)) throw new Error(name + ' gibt es schon – anderen Namen wählen oder alten Punkt löschen.');
+    const hr = zahl($('aufHr').value);
+    const st = await stationHolen();
+    if (!isNaN(hr) && Math.abs((st.hr ?? -1) - hr) > 0.0005){ await putWert('87', hr); st.hr = hr; speicher.set('hr', hr); }
+    const b = await messen(); const p = polar(st, b);
+    aufmass.push({pt: name, code: aufCode, e: +p.e.toFixed(4), n: +p.n.toFixed(4), h: p.h == null ? null : +p.h.toFixed(4),
+                  zeit: new Date().toISOString(), station: {e0: st.e0, n0: st.n0, h0: st.h0}});
+    speicher.set('aufmass', aufmass);
+    melden(`${name} (${aufCode}) gespeichert.`);
+    if (navigator.vibrate) navigator.vibrate(60);
+    $('aufName').value = naechsterName(aufCode);
+    aufListe(); festListe(); auswahlFuellen(); ansicht.m = 0; planZeichnen();
+  }catch(e){ melden(fehlertext(e), true); }
+  k.disabled = !kanal; k.textContent = 'Messen';
+};
+function aufCsv(){
+  const z = v => v == null ? '' : v.toFixed(4).replace('.', ',');
+  return 'Punkt;Rechts;Hoch;Höhe;Code\r\n' + aufmass.map(p => [p.pt, z(p.e), z(p.n), z(p.h), p.code].join(';')).join('\r\n') + '\r\n';
+}
+$('aufTeilen').onclick = async () => {
+  const name = 'Aufmass_' + new Date().toISOString().slice(0, 16).replace(/[-:T]/g, '') + '.csv';
+  const datei = new File(['﻿' + aufCsv()], name, {type: 'text/csv'});
+  try{
+    if (navigator.canShare && navigator.canShare({files: [datei]})){ await navigator.share({files: [datei], title: name}); return; }
+  }catch(e){ if (e && e.name === 'AbortError') return; }
+  try{ const a = document.createElement('a'); a.href = URL.createObjectURL(datei); a.download = name; document.body.appendChild(a); a.click(); a.remove(); melden('CSV heruntergeladen.'); return; }catch(e){}
+  try{ await navigator.clipboard.writeText(aufCsv()); melden('Liste in die Zwischenablage kopiert.'); }catch(e){ melden('Teilen nicht möglich: ' + fehlertext(e), true); }
+};
+$('aufGeraet').onclick = async () => {
+  const k = $('aufGeraet'); k.disabled = true;
+  try{ await hochladen(aufmass.map(p => ({pt: p.pt, e: p.e, n: p.n, h: p.h}))); melden(aufmass.length + ' Punkte im TC805 gesichert.', true); }
+  catch(e){ melden(fehlertext(e), true); }
+  k.disabled = !kanal || !aufmass.length;
+};
+$('aufLeeren').onclick = () => {
+  if (!aufmass.length) return;
+  if (!confirm(aufmass.length + ' aufgenommene Punkte löschen? Vorher teilen oder im TC805 sichern!')) return;
+  aufmass = []; speicher.set('aufmass', aufmass); aufListe(); festListe(); auswahlFuellen(); planZeichnen();
 };
 
 // ---------------------------------------------------------------- Geräteeinstellungen (Soll-Profil prüfen und wiederherstellen)
@@ -757,16 +908,34 @@ $('profilHerstellen').onclick = async () => {
 
 // ---------------------------------------------------------------- Plan (Absteckpunkte, Festpunkte, Station, Prisma)
 const ansicht = {cx: 0, cy: 0, m: 0};
+let planModus = 'ab';
+function planNach(modus){
+  // denselben Plan in den aktiven Reiter hängen (Abstecken oder Aufmaß)
+  if (planModus === modus && $('plan').parentNode) { planZeichnen(); return; }
+  planModus = modus;
+  const platz = $(modus === 'auf' ? 'planPlatzAuf' : 'planPlatzAb');
+  platz.parentNode.insertBefore($('plan'), platz.nextSibling);
+  $('legende').textContent = modus === 'auf' ? '● Aufmaß · ● Fixpunkt (grün) · ⊕ Fest · ▲ Gerät' : '✕ Absteck · ⊕ Fest · ▲ Gerät · ● Prisma';
+  ansicht.m = 0; requestAnimationFrame(() => planZeichnen());
+}
 let prisma = null;
 function stationPasst(){
   // Station gilt als passend, wenn sie höchstens 1 km von den Projektpunkten entfernt ist
   if (!letzteStation || letzteStation.e0 == null) return false;
-  const pts = daten.soll.concat(daten.fest);
+  const pts = daten.soll.concat(fest());
   if (!pts.length) return true;
   return Math.min(...pts.map(p => Math.hypot(p.e - letzteStation.e0, p.n - letzteStation.n0))) < 1000;
 }
 function alleplanpunkte(){
-  const p = daten.soll.concat(daten.fest).map(x => [x.e, x.n]);
+  if (planModus === 'auf' && aufmass.length){
+    // Aufmaß: auf die gemessenen Punkte und das Gerät einpassen (örtliches System kann weit vom Projekt weg liegen)
+    const q = aufmass.map(x => [x.e, x.n]);
+    if (letzteStation && letzteStation.e0 != null && Math.min(...aufmass.map(a => Math.hypot(a.e - letzteStation.e0, a.n - letzteStation.n0))) < 1000)
+      q.push([letzteStation.e0, letzteStation.n0]);
+    return q;
+  }
+  const p = daten.soll.concat(fest()).map(x => [x.e, x.n]);
+  for (const q of aufmass) p.push([q.e, q.n]);
   if (!p.length) for (const l of (daten.linien || [])) p.push([l[0], l[1]], [l[2], l[3]]);
   if (stationPasst()) p.push([letzteStation.e0, letzteStation.n0]);
   if (prisma && stationPasst()) p.push([prisma.e, prisma.n]);
@@ -779,7 +948,7 @@ function einpassen(){
   let y0 = Math.min(...pts.map(p => p[1])), y1 = Math.max(...pts.map(p => p[1]));
   const w = Math.max(x1 - x0, 2), h = Math.max(y1 - y0, 2);
   ansicht.cx = (x0 + x1) / 2; ansicht.cy = (y0 + y1) / 2;
-  ansicht.m = Math.min((box.width - 70) / w, (box.height - 70) / h);
+  ansicht.m = Math.min((box.width - 130) / w, (box.height - 110) / h);
 }
 function planZeichnen(){
   const svg = $('plansvg'), box = $('plan').getBoundingClientRect();
@@ -820,7 +989,7 @@ function planZeichnen(){
   const labelText = (x, y, p, farbeT) => `<text x="${x + 9}" y="${y - 7}" font-size="13" font-weight="700" fill="${farbeT}">${esc(p.pt)}</text>` +
     (p.h != null ? `<text x="${x + 9}" y="${y + 8}" font-size="11" fill="${L}">${(p.h >= 0 ? '+' : '') + m3(p.h)}</text>` : '');
   if (sel) belegt.push([X(sel.e), Y(sel.n)]);
-  for (const p of daten.fest){
+  for (const p of fest()){
     const x = X(p.e), y = Y(p.n);
     o += `<g><circle cx="${x}" cy="${y}" r="6" fill="none" stroke="${G}" stroke-width="2"/><path d="M${x - 9},${y}H${x + 9}M${x},${y - 9}V${y + 9}" stroke="${G}" stroke-width="1.5"/>${label(x, y, p, G)}</g>`;
   }
@@ -832,7 +1001,14 @@ function planZeichnen(){
          (fertig ? `<circle cx="${x}" cy="${y}" r="${r + 4}" fill="none" stroke="${klasse(fertig.dl) === 'g' ? G : R}" stroke-width="1.5"/>` : '') +
          (a ? labelText(x, y, p, c) : label(x, y, p, c)) + `</g>`;
   }
-  if (stationPasst()){
+  aufmass.forEach((p, i) => {
+    const x = X(p.e), y = Y(p.n), letzt = planModus === 'auf' && i === aufmass.length - 1;
+    const f = p.code === 'Fixpunkt BME' ? G : (planModus === 'auf' ? T : TA);
+    o += `<circle cx="${x}" cy="${y}" r="${letzt ? 6 : 4}" fill="${f}"${letzt ? ` stroke="${R}" stroke-width="2"` : ''}/>` +
+         (letzt ? labelText(x, y, p, f) : label(x, y, p, planModus === 'auf' ? f : L));
+  });
+  const stationZeigen = stationPasst() || (planModus === 'auf' && letzteStation && letzteStation.e0 != null);
+  if (stationZeigen){
     const x = X(letzteStation.e0), y = Y(letzteStation.n0);
     o += `<path d="M${x},${y - 10}L${x + 9},${y + 6}L${x - 9},${y + 6}Z" fill="${TA}" stroke="${T}" stroke-width="1.5"/><text x="${x + 12}" y="${y + 4}" font-size="12" fill="${L}">Gerät</text>`;
   }
@@ -841,7 +1017,7 @@ function planZeichnen(){
     if (sel) o += `<line x1="${x}" y1="${y}" x2="${X(sel.e)}" y2="${Y(sel.n)}" stroke="${R}" stroke-width="2"/>`;
     o += `<circle cx="${x}" cy="${y}" r="6" fill="#2f6fb5" stroke="#fff" stroke-width="2"/>`;
   }
-  if (!daten.soll.length && !daten.fest.length) o += `<text x="${W / 2}" y="${H / 2}" text-anchor="middle" font-size="15" fill="${L}">Keine Punkte – Link aus RO-BIM öffnen</text>`;
+  if (!daten.soll.length && !fest().length) o += `<text x="${W / 2}" y="${H / 2}" text-anchor="middle" font-size="15" fill="${L}">Keine Punkte – Link aus RO-BIM öffnen</text>`;
   svg.innerHTML = o;
 }
 function planTippen(cx, cy){
@@ -891,7 +1067,8 @@ document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => {
   document.querySelectorAll('.tabs button').forEach(x => x.classList.toggle('aktiv', x === b));
   document.querySelectorAll('.seite').forEach(s => s.classList.toggle('aktiv', s.id === 's-' + b.dataset.s));
   window.scrollTo(0, 0);
-  if (b.dataset.s === 'abstecken') requestAnimationFrame(() => planZeichnen());
+  if (b.dataset.s === 'abstecken') planNach('ab');
+  if (b.dataset.s === 'aufmass') planNach('auf');
 });
 $('verbinden').onclick = verbinden;
 $('status').onclick = () => { if (kanal){ $('statustext').textContent = 'Akku …'; akkuLesen(); } };
@@ -905,7 +1082,7 @@ $('einfuegenOk').onclick = async () => {
     try{ if (await ladeLink(location.hash)){ melden('Punkte aus RO-BIM geladen.'); history.replaceState(null, '', location.pathname); } }
     catch(e){ melden('Link nicht lesbar: ' + e.message, true); }
   }
-  datenAnzeigen();
+  datenAnzeigen(); codesZeigen(); aufListe();
   if (!navigator.bluetooth) $('bthinweis').textContent = 'Dieser Browser kann kein Bluetooth. Auf dem iPhone die kostenlose App „Bluefy“ öffnen und diese Seite dort aufrufen.';
   statusSetzen(false);
 })();
