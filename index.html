@@ -192,6 +192,7 @@ textarea{width:100%;min-height:90px;font-size:14px;border-radius:10px;border:1.5
       <div><label>Punktname</label><input id="aufName" maxlength="8" autocapitalize="characters"></div>
       <div><label>Reflektorhöhe [m]</label><input id="aufHr" inputmode="decimal"></div>
     </div>
+    <div class="hinweis" style="margin-top:8px"><label style="display:inline"><input type="checkbox" id="aufSofort" style="width:auto" checked> jeden Punkt sofort zusätzlich im TC805 sichern</label></div>
   </div>
   <button class="gross" id="aufMessen" disabled>Messen</button>
   <h2>Plan</h2>
@@ -236,7 +237,7 @@ textarea{width:100%;min-height:90px;font-size:14px;border-radius:10px;border:1.5
     <div class="hinweis" style="margin-top:8px" id="profilInfo"></div>
   </div>
   <h2>Protokoll</h2>
-  <div class="hinweis">Seitenversion 14 · Stand 05.11.2026</div>
+  <div class="hinweis">Seitenversion 15 · Stand 05.11.2026</div>
   <pre id="log"></pre>
 </section>
 
@@ -254,10 +255,28 @@ textarea{width:100%;min-height:90px;font-size:14px;border-radius:10px;border:1.5
 // ---------------------------------------------------------------- Hilfen
 const $ = id => document.getElementById(id);
 const GON = Math.PI / 200;
+let speicherOk = true;
 const speicher = {
-  get(k, d){ try{ const v = localStorage.getItem('robim.' + k); return v === null ? d : JSON.parse(v); }catch(e){ return d; } },
-  set(k, v){ try{ localStorage.setItem('robim.' + k, JSON.stringify(v)); }catch(e){} }
+  get(k, d){
+    try{
+      let v = localStorage.getItem('robim.' + k);
+      if (v === null) v = localStorage.getItem('robim.sicher.' + k);   // Ersatzkopie
+      return v === null ? d : JSON.parse(v);
+    }catch(e){ speicherOk = false; return d; }
+  },
+  set(k, v){
+    try{
+      const t = JSON.stringify(v);
+      localStorage.setItem('robim.' + k, t);
+      if (k === 'aufmass' || k === 'ist') localStorage.setItem('robim.sicher.' + k, t);
+      if (localStorage.getItem('robim.' + k) !== t) throw new Error('nicht gespeichert');
+    }catch(e){ speicherOk = false; }
+  }
 };
+(function speicherTest(){
+  try{ localStorage.setItem('robim.test', '1'); if (localStorage.getItem('robim.test') !== '1') throw 0; localStorage.removeItem('robim.test'); }
+  catch(e){ speicherOk = false; }
+})();
 const m3 = v => v == null ? '–' : v.toLocaleString('de-AT', {minimumFractionDigits:3, maximumFractionDigits:3});
 const cm = v => v == null ? '–' : Math.abs(v) >= 1 ? v.toLocaleString('de-AT', {minimumFractionDigits:2, maximumFractionDigits:2}) + ' m' : (v * 100).toLocaleString('de-AT', {minimumFractionDigits:1, maximumFractionDigits:1}) + ' cm';
 const zahl = s => parseFloat(String(s).replace(',', '.'));
@@ -366,20 +385,48 @@ async function kanalFinden(server){
     throw new Error('Am Adapter keinen seriellen Kanal gefunden.');
   }
 }
+let geraetRef = null, neuVersuche = 0, gewolltGetrennt = false;
+async function kanalOeffnen(geraet){
+  const server = await geraet.gatt.connect();
+  kanal = await kanalFinden(server);
+  await kanal.startNotifications();
+  kanal.addEventListener('characteristicvaluechanged', empfang);
+}
+async function neuVerbinden(){
+  // Verbindung kurz weg (Reichweite, Adapter schläft): bis zu 8 Versuche ohne Geräteauswahl, Daten bleiben erhalten
+  if (!geraetRef || gewolltGetrennt) return;
+  for (neuVersuche = 1; neuVersuche <= 8 && !kanal; neuVersuche++){
+    $('statustext').textContent = 'verbindet neu … (' + neuVersuche + ')';
+    try{
+      await kanalOeffnen(geraetRef);
+      statusSetzen(true, 'verbunden'); melden('Verbindung wieder da.'); log('Neu verbunden nach ' + neuVersuche + ' Versuch(en)');
+      await akkuLesen();
+      return;
+    }catch(e){ kanal = null; log('Neuverbinden ' + neuVersuche + ': ' + fehlertext(e)); }
+    await new Promise(r => setTimeout(r, 2500));
+  }
+  if (!kanal) melden('Verbindung weg – „TC805 verbinden“ tippen. Deine Punkte sind gespeichert, Seite NICHT neu laden.', true);
+}
 async function verbinden(){
   if (!navigator.bluetooth){
     melden('Dieser Browser kann kein Bluetooth. Auf dem iPhone die App „Bluefy“ verwenden.', true); return;
   }
   const k = $('verbinden'); k.disabled = true; k.textContent = 'sucht …';
   try{
-    const geraet = await geraetWaehlen();
+    // Nach einem Abbruch zuerst das bekannte Gerät ohne Auswahlfenster versuchen
+    let geraet = geraetRef;
+    if (!geraet) geraet = await geraetWaehlen();
     log('Gerät: ' + (geraet.name || geraet.id));
-    geraet.addEventListener('gattserverdisconnected', () => { kanal = null; statusSetzen(false); melden('Verbindung getrennt.'); });
+    if (geraet !== geraetRef){
+      geraet.addEventListener('gattserverdisconnected', () => {
+        kanal = null; statusSetzen(false); log('Verbindung getrennt');
+        if (!gewolltGetrennt) neuVerbinden();
+      });
+      geraetRef = geraet;
+    }
     k.textContent = 'verbindet …';
-    const server = await geraet.gatt.connect();
-    kanal = await kanalFinden(server);
-    await kanal.startNotifications();
-    kanal.addEventListener('characteristicvaluechanged', empfang);
+    try{ await kanalOeffnen(geraet); }
+    catch(e){ geraetRef = null; throw e; }
     statusSetzen(true, 'verbunden');
     await akkuLesen();
     try{ await einstellungenPruefen(); }catch(e){ log('Einstellungen: ' + fehlertext(e)); }
@@ -826,7 +873,7 @@ function aufListe(){
       const li = document.createElement('li');
       li.innerHTML = '<span class="name"></span><span class="info zahl"></span>';
       li.children[0].textContent = p.pt;
-      li.children[1].textContent = `${p.code} · E ${m3(p.e)} · N ${m3(p.n)}${p.h != null ? ' · H ' + m3(p.h) : ''}`;
+      li.children[1].textContent = `${p.code} · E ${m3(p.e)} · N ${m3(p.n)}${p.h != null ? ' · H ' + m3(p.h) : ''}${p.imGeraet ? ' · ✓ TC805' : ''}`;
       const x = document.createElement('button'); x.className = 'zweit'; x.style.cssText = 'width:auto;min-height:36px;padding:4px 10px'; x.textContent = '✕';
       x.onclick = () => { aufmass = aufmass.filter(q => q !== p); speicher.set('aufmass', aufmass); aufListe(); festListe(); auswahlFuellen(); planZeichnen(); };
       li.appendChild(x); ul.appendChild(li);
@@ -841,6 +888,8 @@ function aufStationZeigen(){
     : 'Station im Gerät: wird beim Verbinden gelesen';
 }
 $('aufHi').value = String(speicher.get('hi', 1.5)).replace('.', ',');
+$('aufSofort').checked = speicher.get('aufsofort', true);
+$('aufSofort').onchange = () => speicher.set('aufsofort', $('aufSofort').checked);
 $('aufHr').value = String(speicher.get('hr', 1.5)).replace('.', ',');
 $('aufHr2').value = $('aufHr').value;
 $('aufHr').addEventListener('input', () => { $('aufHr2').value = $('aufHr').value; });
@@ -872,6 +921,11 @@ $('aufMessen').onclick = async () => {
                   zeit: new Date().toISOString(), station: {e0: st.e0, n0: st.n0, h0: st.h0}});
     speicher.set('aufmass', aufmass);
     melden(`${name} (${aufCode}) gespeichert.`);
+    if ($('aufSofort').checked){
+      const neu = aufmass[aufmass.length - 1];
+      try{ await hochladen([{pt: neu.pt, e: neu.e, n: neu.n, h: neu.h}]); neu.imGeraet = true; speicher.set('aufmass', aufmass); }
+      catch(e2){ melden(`${name} ist am Handy gespeichert, aber nicht im TC805: ${fehlertext(e2)}`, true); }
+    }
     if (navigator.vibrate) navigator.vibrate(60);
     $('aufName').value = naechsterName(aufCode);
     aufListe(); festListe(); auswahlFuellen(); ansicht.m = 0; planZeichnen();
@@ -1180,6 +1234,8 @@ $('einfuegenOk').onclick = async () => {
     catch(e){ melden('Link nicht lesbar: ' + e.message, true); }
   }
   datenAnzeigen(); codesZeigen(); aufListe();
+  if (!speicherOk) melden('⚠ Dieses Handy speichert die Punkte nicht dauerhaft (privater Modus?). Jeden Punkt im TC805 sichern lassen und die Liste regelmäßig teilen!', true);
+  else if (aufmass.length) melden(aufmass.length + ' Aufmaßpunkte wiederhergestellt.');
   if (!navigator.bluetooth) $('bthinweis').textContent = 'Dieser Browser kann kein Bluetooth. Auf dem iPhone die kostenlose App „Bluefy“ öffnen und diese Seite dort aufrufen.';
   statusSetzen(false);
 })();
